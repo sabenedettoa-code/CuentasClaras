@@ -13,10 +13,23 @@ import {
   collection, 
   addDoc, 
   getDocs, 
+  doc, 
+  updateDoc,
+  deleteDoc,
   query, 
   where,
   onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// --- CONFIGURACIÓN DE EMAILJS CON TUS CLAVES REALES ---
+const EMAILJS_PUBLIC_KEY = "e_uovUaQx61cm7X24"; 
+const EMAILJS_SERVICE_ID = "service_v89l5mz"; 
+const EMAILJS_TEMPLATE_ID = "template_qiaonxj"; 
+
+// Inicializar EmailJS
+if (typeof emailjs !== "undefined") {
+  emailjs.init(EMAILJS_PUBLIC_KEY);
+}
 
 // Configuración de Firebase
 const firebaseConfig = {
@@ -29,12 +42,55 @@ const firebaseConfig = {
   measurementId: "G-JMS3FCFM4L"
 };
 
+const VERCEL_APP_URL = "https://appcuentasclaras.vercel.app";
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Elementos del DOM
+// ... (El resto del código de app.js se mantiene exactamente igual)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  doc, 
+  updateDoc,
+  deleteDoc,
+  query, 
+  where,
+  onSnapshot 
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAtECy4MkyBnzYG_ZtIGDLl_75Yedo66NM",
+  authDomain: "gastoshogarapp-1bbae.firebaseapp.com",
+  projectId: "gastoshogarapp-1bbae",
+  storageBucket: "gastoshogarapp-1bbae.firebasestorage.app",
+  messagingSenderId: "1040938444301",
+  appId: "1:1040938444301:web:e5563e8662aa950551d744",
+  measurementId: "G-JMS3FCFM4L"
+};
+
+const VERCEL_APP_URL = "https://appcuentasclaras.vercel.app";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+
+// Elementos DOM
 const authContainer = document.getElementById('auth-container');
 const appContainer = document.getElementById('app-container');
 const authForm = document.getElementById('auth-form');
@@ -48,6 +104,12 @@ const authTitle = document.getElementById('auth-title');
 const toggleText = document.getElementById('toggle-text');
 const authMessage = document.getElementById('auth-message');
 
+const modalTutorial = document.getElementById('modal-tutorial');
+const btnTutorial = document.getElementById('btn-tutorial');
+const btnCloseModal = document.getElementById('btn-close-modal');
+const btnEntendido = document.getElementById('btn-entendido');
+
+const selectGrupos = document.getElementById('select-grupos');
 const sinHogarBox = document.getElementById('sin-hogar-box');
 const conHogarBox = document.getElementById('con-hogar-box');
 const btnCrearHogar = document.getElementById('btn-crear-hogar');
@@ -60,6 +122,7 @@ const balanceSection = document.getElementById('balance-section');
 const gastoSection = document.getElementById('gasto-section');
 const historialSection = document.getElementById('historial-section');
 const balanceDisplay = document.getElementById('balance-display');
+const btnSaldar = document.getElementById('btn-saldar');
 const gastoForm = document.getElementById('gasto-form');
 const listaGastos = document.getElementById('lista-gastos');
 
@@ -68,9 +131,10 @@ const grupoCorreoDeudor = document.getElementById('grupo-correo-deudor');
 
 let currentUser = null;
 let currentHogar = null;
+let listaMisGrupos = [];
 let isLogin = true;
+let unsubscribeGastos = null;
 
-// Formateador de Pesos Chilenos (CLP)
 function formatearCLP(monto) {
   return new Intl.NumberFormat('es-CL', {
     style: 'currency',
@@ -79,7 +143,11 @@ function formatearCLP(monto) {
   }).format(monto);
 }
 
-// Ocultar/Mostrar campo de correo según tipo de gasto
+// TUTORIAL
+btnTutorial.addEventListener('click', () => modalTutorial.classList.remove('hidden'));
+btnCloseModal.addEventListener('click', () => modalTutorial.classList.add('hidden'));
+btnEntendido.addEventListener('click', () => modalTutorial.classList.add('hidden'));
+
 tipoGastoSelect.addEventListener('change', (e) => {
   if (e.target.value === 'personal') {
     grupoCorreoDeudor.classList.add('hidden');
@@ -88,7 +156,7 @@ tipoGastoSelect.addEventListener('change', (e) => {
   }
 });
 
-// --- 1. AUTENTICACIÓN ---
+// --- AUTENTICACIÓN ---
 
 btnToggle.addEventListener('click', () => {
   isLogin = !isLogin;
@@ -134,8 +202,9 @@ onAuthStateChanged(auth, async (user) => {
     authContainer.classList.add('hidden');
     appContainer.classList.remove('hidden');
     escucharNotificaciones(user.email);
-    await verificarHogarUsuario();
+    await cargarGruposUsuario();
   } else {
+    if (unsubscribeGastos) unsubscribeGastos();
     currentUser = null;
     currentHogar = null;
     authContainer.classList.remove('hidden');
@@ -143,12 +212,13 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// --- 2. NOTIFICACIONES EN TIEMPO REAL ---
+// --- NOTIFICACIONES EN TIEMPO REAL CON LINK A VERCEL ---
 
 function escucharNotificaciones(userEmail) {
   const q = query(
     collection(db, 'notificaciones'), 
-    where('paraEmail', '==', userEmail)
+    where('paraEmail', '==', userEmail),
+    where('leida', '==', false)
   );
 
   onSnapshot(q, (snapshot) => {
@@ -163,8 +233,8 @@ function escucharNotificaciones(userEmail) {
     notiSection.classList.remove('hidden');
     notiContainer.innerHTML = '';
 
-    snapshot.forEach((doc) => {
-      const noti = doc.data();
+    snapshot.forEach((documento) => {
+      const noti = documento.data();
       const div = document.createElement('div');
       div.className = 'gasto-item';
       div.style.borderLeft = '4px solid #10b981';
@@ -172,6 +242,7 @@ function escucharNotificaciones(userEmail) {
         <div>
           <strong>📩 Nuevo gasto asignado</strong>
           <p style="font-size: 0.85rem; color: #9ca3af;">${noti.mensaje}</p>
+          <button class="btn-noti-check" data-id="${documento.id}">✓ Marcar como enterado</button>
         </div>
         <div style="color: #ef4444; font-weight: bold;">
           Debes: ${formatearCLP(noti.montoCuota)}
@@ -179,13 +250,75 @@ function escucharNotificaciones(userEmail) {
       `;
       notiContainer.appendChild(div);
     });
+
+    document.querySelectorAll('.btn-noti-check').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const notiId = e.target.dataset.id;
+        await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+      });
+    });
   });
 }
 
-// --- 3. GESTIÓN DEL GRUPO DE GASTOS ---
+// --- GESTIÓN DE MÚLTIPLES GRUPOS ---
 
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+async function cargarGruposUsuario() {
+  const q = query(collection(db, 'hogares'), where('integrantes', 'array-contains', currentUser.uid));
+  const snapshot = await getDocs(q);
+
+  listaMisGrupos = [];
+  selectGrupos.innerHTML = '';
+
+  if (snapshot.empty) {
+    const opt = document.createElement('option');
+    opt.value = "";
+    opt.textContent = "-- No tienes grupos aún --";
+    selectGrupos.appendChild(opt);
+    
+    conHogarBox.classList.add('hidden');
+    balanceSection.classList.add('hidden');
+    gastoSection.classList.add('hidden');
+    historialSection.classList.add('hidden');
+    return;
+  }
+
+  snapshot.forEach(documento => {
+    listaMisGrupos.push({ id: documento.id, ...documento.data() });
+  });
+
+  listaMisGrupos.forEach((grupo) => {
+    const opt = document.createElement('option');
+    opt.value = grupo.id;
+    opt.textContent = `📁 ${grupo.nombre}`;
+    selectGrupos.appendChild(opt);
+  });
+
+  seleccionarGrupoActivo(listaMisGrupos[0].id);
+}
+
+selectGrupos.addEventListener('change', (e) => {
+  if (e.target.value) {
+    seleccionarGrupoActivo(e.target.value);
+  }
+});
+
+function seleccionarGrupoActivo(grupoId) {
+  currentHogar = listaMisGrupos.find(g => g.id === grupoId);
+  if (!currentHogar) return;
+
+  conHogarBox.classList.remove('hidden');
+  balanceSection.classList.remove('hidden');
+  gastoSection.classList.remove('hidden');
+  historialSection.classList.remove('hidden');
+
+  document.getElementById('codigo-hogar-display').textContent = currentHogar.codigo;
+  document.getElementById('integrantes-count').textContent = currentHogar.integrantes ? currentHogar.integrantes.length : 1;
+
+  escucharGastosEnTiempoReal();
 }
 
 btnCrearHogar.addEventListener('click', async () => {
@@ -201,8 +334,9 @@ btnCrearHogar.addEventListener('click', async () => {
       integrantes: [currentUser.uid]
     });
 
-    currentHogar = { id: docRef.id, nombre, codigo, integrantes: [currentUser.uid] };
-    mostrarHogarActivo();
+    nombreHogarInput.value = '';
+    await cargarGruposUsuario();
+    seleccionarGrupoActivo(docRef.id);
   } catch (error) {
     console.error('Error al crear grupo:', error);
   }
@@ -223,8 +357,14 @@ btnUnirseHogar.addEventListener('click', async () => {
     const hogarDoc = snapshot.docs[0];
     const data = hogarDoc.data();
 
-    currentHogar = { id: hogarDoc.id, ...data };
-    mostrarHogarActivo();
+    if (!data.integrantes.includes(currentUser.uid)) {
+      data.integrantes.push(currentUser.uid);
+      await updateDoc(doc(db, 'hogares', hogarDoc.id), { integrantes: data.integrantes });
+    }
+
+    codigoUnirseInput.value = '';
+    await cargarGruposUsuario();
+    seleccionarGrupoActivo(hogarDoc.id);
   } catch (error) {
     console.error('Error al unirse al grupo:', error);
   }
@@ -233,11 +373,11 @@ btnUnirseHogar.addEventListener('click', async () => {
 btnCompartir.addEventListener('click', async () => {
   if (!currentHogar) return;
 
-  const textoCompartir = `¡Únete a mi grupo "${currentHogar.nombre}" en CuentasClaras para compartir gastos! Usa el código: ${currentHogar.codigo}`;
+  const textoCompartir = `¡Únete a mi grupo "${currentHogar.nombre}" en CuentasClaras para compartir gastos! Ingresa a ${VERCEL_APP_URL} y usa el código: ${currentHogar.codigo}`;
 
   if (navigator.share) {
     try {
-      await navigator.share({ title: 'CuentasClaras', text: textoCompartir });
+      await navigator.share({ title: 'CuentasClaras', text: textoCompartir, url: VERCEL_APP_URL });
     } catch (err) {
       console.log('Compartir cancelado:', err);
     }
@@ -247,49 +387,34 @@ btnCompartir.addEventListener('click', async () => {
   }
 });
 
-async function verificarHogarUsuario() {
-  const q = query(collection(db, 'hogares'), where('integrantes', 'array-contains', currentUser.uid));
-  const snapshot = await getDocs(q);
-
-  if (!snapshot.empty) {
-    const hogarDoc = snapshot.docs[0];
-    currentHogar = { id: hogarDoc.id, ...hogarDoc.data() };
-    mostrarHogarActivo();
-  } else {
-    sinHogarBox.classList.remove('hidden');
-    conHogarBox.classList.add('hidden');
-    balanceSection.classList.add('hidden');
-    gastoSection.classList.add('hidden');
-    historialSection.classList.add('hidden');
-  }
-}
-
-function mostrarHogarActivo() {
-  sinHogarBox.classList.add('hidden');
-  conHogarBox.classList.remove('hidden');
-  balanceSection.classList.remove('hidden');
-  gastoSection.classList.remove('hidden');
-  historialSection.classList.remove('hidden');
-
-  document.getElementById('nombre-hogar-display').textContent = currentHogar.nombre;
-  document.getElementById('codigo-hogar-display').textContent = currentHogar.codigo;
-
-  cargarGastosYCalcularBalance();
-}
-
-// --- 4. REGISTRO Y CÁLCULO DE DEUDAS ---
+// --- REGISTRO Y NOTIFICACIÓN MÚLTIPLE DE INTEGRANTES ---
 
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  if (!currentHogar) return alert("Selecciona un grupo primero");
 
   const titulo = document.getElementById('titulo').value.trim();
   const categoria = document.getElementById('categoria').value;
   const monto = parseFloat(document.getElementById('monto').value);
   const tipoGasto = document.getElementById('tipo-gasto').value;
-  const correoDeudor = document.getElementById('correo-deudor').value.trim();
+  const correosRaw = document.getElementById('correo-deudor').value.trim();
   const enlace = document.getElementById('enlace').value.trim();
 
   const esCompartido = tipoGasto === 'compartido';
+
+  // Procesar lista de correos separados por comas
+  let correosLista = [];
+  if (esCompartido && correosRaw) {
+    correosLista = correosRaw
+      .split(',')
+      .map(c => c.trim().toLowerCase())
+      .filter(c => c.length > 0 && c !== currentUser.email);
+  }
+
+  // El total de personas dividiendo = Creador (1) + Correos ingresados
+  const totalPersonasDividiendo = 1 + correosLista.length;
+  const cuotaPorPersona = monto / totalPersonasDividiendo;
 
   try {
     await addDoc(collection(db, 'gastos'), {
@@ -298,7 +423,7 @@ gastoForm.addEventListener('submit', async (e) => {
       categoria: categoria,
       monto: monto,
       esCompartido: esCompartido,
-      compartidoConEmail: esCompartido ? correoDeudor : null,
+      compartidoConEmails: correosLista,
       enlaceComprobante: enlace,
       pagadoPor: currentUser.uid,
       pagadoPorEmail: currentUser.email,
@@ -306,72 +431,109 @@ gastoForm.addEventListener('submit', async (e) => {
       fecha: new Date().toISOString()
     });
 
-    if (esCompartido && correoDeudor) {
-      const cuota = monto / 2;
-      await addDoc(collection(db, 'notificaciones'), {
-        paraEmail: correoDeudor,
-        deEmail: currentUser.email,
-        mensaje: `${currentUser.email.split('@')[0]} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras.`,
-        montoCuota: cuota,
-        fecha: new Date().toISOString()
-      });
+    // Crear notificación individual para cada correo ingresado
+    if (esCompartido && correosLista.length > 0) {
+      for (const correoDestino of correosLista) {
+        await addDoc(collection(db, 'notificaciones'), {
+          paraEmail: correoDestino,
+          deEmail: currentUser.email,
+          mensaje: `${currentUser.email.split('@')[0]} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras (${VERCEL_APP_URL}).`,
+          montoCuota: cuotaPorPersona,
+          leida: false,
+          fecha: new Date().toISOString()
+        });
+      }
     }
 
     gastoForm.reset();
-    cargarGastosYCalcularBalance();
-    alert('¡Gasto registrado en CuentasClaras correctamente!');
   } catch (error) {
     console.error('Error al guardar gasto:', error);
   }
 });
 
-async function cargarGastosYCalcularBalance() {
+function escucharGastosEnTiempoReal() {
+  if (unsubscribeGastos) unsubscribeGastos();
+
   const q = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
-  const snapshot = await getDocs(q);
 
-  let totalCompartido = 0;
-  let pagadoPorMiCompartido = 0;
+  unsubscribeGastos = onSnapshot(q, (snapshot) => {
+    let totalCompartido = 0;
+    let pagadoPorMiCompartido = 0;
 
-  listaGastos.innerHTML = '';
+    listaGastos.innerHTML = '';
 
-  snapshot.forEach((doc) => {
-    const gasto = doc.data();
+    snapshot.forEach((documento) => {
+      const gasto = documento.data();
 
-    if (gasto.esCompartido) {
-      totalCompartido += gasto.monto;
-      if (gasto.pagadoPor === currentUser.uid) {
-        pagadoPorMiCompartido += gasto.monto;
+      if (gasto.esCompartido) {
+        totalCompartido += gasto.monto;
+        if (gasto.pagadoPor === currentUser.uid) {
+          pagadoPorMiCompartido += gasto.monto;
+        }
       }
+
+      const tagClase = gasto.esCompartido ? 'tag-compartido' : 'tag-personal';
+      const tagTexto = gasto.esCompartido ? 'Compartido' : 'Personal';
+
+      const li = document.createElement('li');
+      li.className = 'gasto-item';
+      li.innerHTML = `
+        <div>
+          <strong>${gasto.categoria} - ${gasto.titulo}</strong>
+          <span class="gasto-tag ${tagClase}">${tagTexto}</span>
+          <br><small>Pagado por: ${gasto.pagadoPorNombre}</small>
+          ${gasto.enlaceComprobante ? `<br><a href="${gasto.enlaceComprobante}" target="_blank" class="gasto-link">📄 Ver Comprobante</a>` : ''}
+        </div>
+        <div class="gasto-actions">
+          <strong>${formatearCLP(gasto.monto)}</strong>
+          ${gasto.pagadoPor === currentUser.uid ? `<button class="btn-delete" data-id="${documento.id}" title="Eliminar gasto">🗑️</button>` : ''}
+        </div>
+      `;
+      listaGastos.appendChild(li);
+    });
+
+    document.querySelectorAll('.btn-delete').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        if (confirm('¿Deseas eliminar este registro de gasto?')) {
+          const gastoId = e.target.dataset.id;
+          await deleteDoc(doc(db, 'gastos', gastoId));
+        }
+      });
+    });
+
+    // División basada en los integrantes actuales del grupo
+    const numIntegrantesGroup = (currentHogar.integrantes && currentHogar.integrantes.length > 0) ? currentHogar.integrantes.length : 2;
+    const cuotaPorPersona = totalCompartido / numIntegrantesGroup;
+    const miDiferencia = pagadoPorMiCompartido - cuotaPorPersona;
+
+    if (miDiferencia > 0) {
+      balanceDisplay.innerHTML = `<span style="color: #10b981;">A tu favor en "${currentHogar.nombre}": ${formatearCLP(miDiferencia)}</span>`;
+      btnSaldar.classList.remove('hidden');
+    } else if (miDiferencia < 0) {
+      balanceDisplay.innerHTML = `<span style="color: #ef4444;">Debes en "${currentHogar.nombre}": ${formatearCLP(Math.abs(miDiferencia))}</span>`;
+      btnSaldar.classList.remove('hidden');
+    } else {
+      balanceDisplay.innerHTML = `<span>¡Cuentas al día en "${currentHogar.nombre}"! No hay deudas pendientes.</span>`;
+      btnSaldar.classList.add('hidden');
     }
-
-    const tagClase = gasto.esCompartido ? 'tag-compartido' : 'tag-personal';
-    const tagTexto = gasto.esCompartido ? 'Compartido' : 'Personal';
-
-    const li = document.createElement('li');
-    li.className = 'gasto-item';
-    li.innerHTML = `
-      <div>
-        <strong>${gasto.categoria} - ${gasto.titulo}</strong>
-        <span class="gasto-tag ${tagClase}">${tagTexto}</span>
-        <br><small>Pagado por: ${gasto.pagadoPorNombre}</small>
-        ${gasto.enlaceComprobante ? `<br><a href="${gasto.enlaceComprobante}" target="_blank" class="gasto-link">📄 Ver Comprobante</a>` : ''}
-      </div>
-      <div><strong>${formatearCLP(gasto.monto)}</strong></div>
-    `;
-    listaGastos.appendChild(li);
   });
-
-  const cuotaPorPersona = totalCompartido / 2;
-  const miDiferencia = pagadoPorMiCompartido - cuotaPorPersona;
-
-  if (miDiferencia > 0) {
-    balanceDisplay.innerHTML = `<span style="color: #10b981;">Te deben: ${formatearCLP(miDiferencia)}</span>`;
-  } else if (miDiferencia < 0) {
-    balanceDisplay.innerHTML = `<span style="color: #ef4444;">Debes: ${formatearCLP(Math.abs(miDiferencia))}</span>`;
-  } else {
-    balanceDisplay.innerHTML = `<span>¡Cuentas al día! No hay deudas pendientes.</span>`;
-  }
 }
+
+btnSaldar.addEventListener('click', async () => {
+  if (confirm(`¿Confirmas que ya se realizó el pago para saldar las cuentas de "${currentHogar.nombre}"?`)) {
+    const q = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
+    const snapshot = await getDocs(q);
+
+    snapshot.forEach(async (documento) => {
+      const gasto = documento.data();
+      if (gasto.esCompartido) {
+        await updateDoc(doc(db, 'gastos', documento.id), { esCompartido: false });
+      }
+    });
+
+    alert('¡Cuentas saldadas con éxito!');
+  }
+});
 
 function mostrarMensaje(texto, tipo) {
   authMessage.textContent = texto;

@@ -71,6 +71,13 @@ h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 16px; color: var(--pri
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
 }
 
 .logo-header { display: flex; align-items: center; gap: 10px; }
@@ -79,17 +86,14 @@ h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 16px; color: var(--pri
 .auth-logo { text-align: center; margin-bottom: 8px; }
 .auth-logo .logo-icon { font-size: 2.8rem; display: block; margin-bottom: 4px; }
 
-.welcome-card {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, var(--bg-card) 100%);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-}
-
 .welcome-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+.margin-bottom-zero { margin-bottom: 0 !important; }
+
 .welcome-logo {
-  font-size: 2.5rem;
+  font-size: 2.2rem;
   background: rgba(16, 185, 129, 0.15);
   border: 1px solid rgba(16, 185, 129, 0.3);
-  width: 60px; height: 60px;
+  width: 54px; height: 54px;
   border-radius: 14px;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -99,7 +103,6 @@ h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 16px; color: var(--pri
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 16px;
-  margin-top: 16px;
 }
 
 .step-item {
@@ -157,16 +160,29 @@ input:focus, select:focus {
 .btn-primary:hover { background: var(--primary-hover); }
 
 .btn-secondary {
-  padding: 10px 18px;
+  padding: 10px 16px;
   background: #1e293b;
   color: var(--text-main);
   border: 1px solid var(--border-color);
   border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 .btn-secondary:hover { background: #334155; }
+
+.btn-saldar {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--primary);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.btn-saldar:hover { background: rgba(16, 185, 129, 0.25); }
 
 .btn-google {
   width: 100%;
@@ -194,6 +210,71 @@ input:focus, select:focus {
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+.btn-delete {
+  background: none;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 4px;
+  margin-left: 8px;
+  opacity: 0.7;
+}
+.btn-delete:hover { opacity: 1; }
+
+.btn-noti-check {
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--primary);
+  border: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+/* MODAL Y TUTORIAL APARTE */
+.modal-backdrop {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 28px;
+  max-width: 520px;
+  width: 100%;
+  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.btn-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+}
+.btn-close:hover { color: var(--text-main); }
 
 .divider { display: flex; align-items: center; margin: 20px 0; color: var(--text-muted); font-size: 0.8rem; }
 .divider::before, .divider::after { content: ''; flex: 1; border-bottom: 1px solid var(--border-color); }
@@ -251,6 +332,7 @@ input:focus, select:focus {
   align-items: center;
 }
 
+.gasto-actions { display: flex; align-items: center; gap: 10px; }
 .gasto-tag {
   font-size: 0.72rem;
   padding: 3px 8px;

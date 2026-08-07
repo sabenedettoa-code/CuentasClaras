@@ -8,7 +8,6 @@
   <!-- FAVICON -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
 
-  <!-- Fuente tipográfica moderna Plus Jakarta Sans -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -65,41 +64,11 @@
         <span class="logo-icon-sm">💸</span>
         <h1>CuentasClaras</h1>
       </div>
-      <button id="btn-logout" class="btn-secondary">Cerrar Sesión</button>
+      <div class="header-actions">
+        <button id="btn-tutorial" class="btn-secondary" type="button">❓ ¿Cómo funciona?</button>
+        <button id="btn-logout" class="btn-secondary" type="button">Cerrar Sesión</button>
+      </div>
     </header>
-
-    <!-- BANNER DE BIENVENIDA -->
-    <section class="card welcome-card">
-      <div class="welcome-header">
-        <div class="welcome-logo">💸</div>
-        <div>
-          <h2>¡Bienvenido/a a CuentasClaras!</h2>
-          <p class="subtitle" style="margin-bottom: 0;">
-            Tu espacio centralizado para llevar las cuentas de luz, agua, gas, restaurantes y supermercado al día en CLP.
-          </p>
-        </div>
-      </div>
-
-      <div class="steps-grid">
-        <div class="step-item">
-          <span class="step-num">1</span>
-          <strong>Crea o únete a un grupo</strong>
-          <p>Genera un código de acceso y compártelo con tus compañeros o amigos.</p>
-        </div>
-
-        <div class="step-item">
-          <span class="step-num">2</span>
-          <strong>Registra tus cuentas</strong>
-          <p>Añade gastos en CLP, asigna a un usuario por correo e incluye comprobantes.</p>
-        </div>
-
-        <div class="step-item">
-          <span class="step-num">3</span>
-          <strong>Notificaciones y saldos</strong>
-          <p>Notificaciones internas en tiempo real y saldos automatizados.</p>
-        </div>
-      </div>
-    </section>
 
     <!-- PANEL DE NOTIFICACIONES -->
     <section id="notificaciones-section" class="card hidden">
@@ -107,27 +76,34 @@
       <div id="lista-notificaciones"></div>
     </section>
 
-    <!-- SECCIÓN 1: GRUPO DE GASTOS -->
+    <!-- SECCIÓN 1: SELECCIÓN Y CREACIÓN DE MÚLTIPLES GRUPOS -->
     <section id="hogar-section" class="card">
-      <h2>👥 Grupo de Cuentas</h2>
-      <div id="sin-hogar-box">
-        <p class="subtitle">Crea un grupo de gastos o únete a uno existente usando un código de acceso.</p>
-        <div class="flex-gap margin-top">
-          <input type="text" id="nombre-hogar-input" placeholder="Nombre (Ej: Casa, Dpto 302, Viaje)">
-          <button id="btn-crear-hogar" class="btn-primary">Crear</button>
-        </div>
-        <div class="divider"><span>O</span></div>
-        <div class="flex-gap">
-          <input type="text" id="codigo-unirse-input" placeholder="Código de 6 caracteres">
-          <button id="btn-unirse-hogar" class="btn-secondary">Unirse</button>
-        </div>
+      <h2>👥 Tus Grupos de Cuentas</h2>
+      
+      <div class="input-group margin-top">
+        <label for="select-grupos">Seleccionar Grupo Activo</label>
+        <select id="select-grupos">
+          <option value="">-- Cargar Grupos... --</option>
+        </select>
       </div>
 
       <div id="con-hogar-box" class="hidden">
-        <p>Grupo actual: <strong id="nombre-hogar-display">---</strong></p>
         <div class="codigo-share-row">
-          <span>Código: <strong id="codigo-hogar-display" class="badge">---</strong></span>
+          <span>Código del grupo: <strong id="codigo-hogar-display" class="badge">---</strong> (<span id="integrantes-count">1</span> integrante(s))</span>
           <button id="btn-compartir" class="btn-share" type="button">📲 Compartir Código</button>
+        </div>
+      </div>
+
+      <div class="divider"><span>O crea / únete a otro grupo</span></div>
+
+      <div id="sin-hogar-box">
+        <div class="flex-gap">
+          <input type="text" id="nombre-hogar-input" placeholder="Nombre (Ej: Casa, Dpto 302, Viaje)">
+          <button id="btn-crear-hogar" class="btn-primary">Crear Grupo</button>
+        </div>
+        <div class="flex-gap margin-top">
+          <input type="text" id="codigo-unirse-input" placeholder="Código de 6 caracteres">
+          <button id="btn-unirse-hogar" class="btn-secondary">Unirse</button>
         </div>
       </div>
     </section>
@@ -136,8 +112,9 @@
     <section id="balance-section" class="card hidden">
       <h2>⚖️ Estado de Deudas (CLP)</h2>
       <div class="balance-box" id="balance-display">
-        Calculando saldos...
+        Selecciona o crea un grupo...
       </div>
+      <button id="btn-saldar" class="btn-saldar margin-top hidden" type="button">✅ Saldar y Reiniciar Cuentas</button>
     </section>
 
     <!-- SECCIÓN 3: REGISTRAR GASTO -->
@@ -178,8 +155,8 @@
           </div>
 
           <div class="input-group" id="grupo-correo-deudor">
-            <label for="correo-deudor">Correo de la persona asignada</label>
-            <input type="email" id="correo-deudor" placeholder="amigo@email.com">
+            <label for="correo-deudor">Correos a notificar (Separados por coma)</label>
+            <input type="text" id="correo-deudor" placeholder="ana@email.com, carlos@email.com">
           </div>
         </div>
 
@@ -194,9 +171,47 @@
 
     <!-- SECCIÓN 4: HISTORIAL DE GASTOS -->
     <section id="historial-section" class="card hidden">
-      <h2>📜 Historial de Cuentas</h2>
+      <h2>📜 Historial de Cuentas del Grupo</h2>
       <ul id="lista-gastos" class="gastos-list"></ul>
     </section>
+  </div>
+
+  <!-- MODAL TUTORIAL -->
+  <div id="modal-tutorial" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="welcome-header margin-bottom-zero">
+          <div class="welcome-logo">💸</div>
+          <div>
+            <h2>Guía Rápida de CuentasClaras</h2>
+            <p class="subtitle" style="margin-bottom: 0;">Gestiona tus gastos en appcuentasclaras.vercel.app</p>
+          </div>
+        </div>
+        <button id="btn-close-modal" class="btn-close">&times;</button>
+      </div>
+
+      <div class="steps-grid margin-top">
+        <div class="step-item">
+          <span class="step-num">1</span>
+          <strong>Crea o selecciona tus grupos</strong>
+          <p>Puedes tener múltiples grupos (Ej: Casa, Viaje, Depto). Comparte el código único con tus amigos.</p>
+        </div>
+
+        <div class="step-item">
+          <span class="step-num">2</span>
+          <strong>Añade varios integrantes</strong>
+          <p>Ingresa sus correos separados por coma y la cuota se calculará automáticamente entre todos.</p>
+        </div>
+
+        <div class="step-item">
+          <span class="step-num">3</span>
+          <strong>Notificaciones en tiempo real</strong>
+          <p>A cada correo le llegará una alerta en tiempo real con el enlace de la app para ver su deuda.</p>
+        </div>
+      </div>
+
+      <button id="btn-entendido" class="btn-primary margin-top">¡Entendido, ir a mis cuentas!</button>
+    </div>
   </div>
 
   <script type="module" src="app.js"></script>
