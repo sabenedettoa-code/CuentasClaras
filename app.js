@@ -6,7 +6,8 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { 
   getFirestore, 
@@ -14,6 +15,7 @@ import {
   addDoc, 
   getDocs, 
   doc, 
+  setDoc,
   updateDoc,
   deleteDoc,
   query, 
@@ -62,13 +64,16 @@ const authTitle = document.getElementById('auth-title');
 const toggleText = document.getElementById('toggle-text');
 const authMessage = document.getElementById('auth-message');
 
+const registroCamposExtra = document.getElementById('registro-campos-extra');
+const nombreApellidoInput = document.getElementById('nombre-apellido');
+const rutUsuarioInput = document.getElementById('rut-usuario');
+
 const modalTutorial = document.getElementById('modal-tutorial');
 const btnTutorial = document.getElementById('btn-tutorial');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const btnEntendido = document.getElementById('btn-entendido');
 
 const selectGrupos = document.getElementById('select-grupos');
-const sinHogarBox = document.getElementById('sin-hogar-box');
 const conHogarBox = document.getElementById('con-hogar-box');
 const btnCrearHogar = document.getElementById('btn-crear-hogar');
 const btnUnirseHogar = document.getElementById('btn-unirse-hogar');
@@ -92,6 +97,29 @@ let currentHogar = null;
 let listaMisGrupos = [];
 let isLogin = true;
 let unsubscribeGastos = null;
+
+// VALIDACIÓN DEL RUT CHILENO (Mód. 11)
+function validarRut(rutCompleto) {
+  rutCompleto = rutCompleto.replace(/[^0-9kK]/g, '');
+  if (rutCompleto.length < 8) return false;
+  
+  const cuerpo = rutCompleto.slice(0, -1);
+  let dv = rutCompleto.slice(-1).toUpperCase();
+  
+  let suma = 0;
+  let multiplo = 2;
+  
+  for (let i = 1; i <= cuerpo.length; i++) {
+    const index = multiplo * rutCompleto.charAt(cuerpo.length - i);
+    suma += index;
+    if (multiplo < 7) { multiplo += 1; } else { multiplo = 2; }
+  }
+  
+  const dvEsperado = 11 - (suma % 11);
+  let dvCalc = dvEsperado === 11 ? '0' : dvEsperado === 10 ? 'K' : dvEsperado.toString();
+  
+  return dvCalc === dv;
+}
 
 function formatearCLP(monto) {
   return new Intl.NumberFormat('es-CL', {
@@ -122,6 +150,12 @@ btnToggle.addEventListener('click', () => {
   btnSubmit.textContent = isLogin ? 'Entrar' : 'Registrarse';
   toggleText.textContent = isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?';
   btnToggle.textContent = isLogin ? 'Registrarse' : 'Iniciar Sesión';
+  
+  if (isLogin) {
+    registroCamposExtra.classList.add('hidden');
+  } else {
+    registroCamposExtra.classList.remove('hidden');
+  }
   authMessage.textContent = '';
 });
 
@@ -136,7 +170,30 @@ authForm.addEventListener('submit', async (e) => {
     if (isLogin) {
       await signInWithEmailAndPassword(auth, email, password);
     } else {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const nombreApellido = nombreApellidoInput.value.trim();
+      const rut = rutUsuarioInput.value.trim();
+
+      if (!nombreApellido) {
+        return mostrarMensaje('Por favor ingresa tu Nombre y Apellido.', 'error');
+      }
+
+      if (!validarRut(rut)) {
+        return mostrarMensaje('El RUT ingresado no es válido.', 'error');
+      }
+
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Actualizar perfil con el Nombre y Apellido
+      await updateProfile(user, { displayName: nombreApellido });
+
+      // Guardar información extendida en Firestore
+      await setDoc(doc(db, 'usuarios', user.uid), {
+        nombreApellido: nombreApellido,
+        rut: rut,
+        email: email,
+        fechaRegistro: new Date().toISOString()
+      });
     }
   } catch (error) {
     mostrarMensaje(traducirError(error.code), 'error');
@@ -151,7 +208,7 @@ btnGoogle.addEventListener('click', async () => {
   } catch (error) {
     console.error('Error al iniciar sesión con Google:', error);
     if (error.code === 'auth/unauthorized-domain') {
-      mostrarMensaje('Error: Dominio no autorizado. Agrega appcuentasclaras.vercel.app en Firebase Auth.', 'error');
+      mostrarMensaje('Error: Dominio no autorizado en Firebase Auth.', 'error');
     } else if (error.code === 'auth/popup-closed-by-user') {
       mostrarMensaje('La ventana de inicio de sesión fue cerrada.', 'info');
     } else {
@@ -380,6 +437,9 @@ gastoForm.addEventListener('submit', async (e) => {
   const totalPersonasDividiendo = 1 + correosLista.length;
   const cuotaPorPersona = monto / totalPersonasDividiendo;
 
+  // Usa el Nombre Real registrado en el perfil
+  const nombreReal = currentUser.displayName || currentUser.email.split('@')[0];
+
   try {
     await addDoc(collection(db, 'gastos'), {
       hogarId: currentHogar.id,
@@ -391,7 +451,7 @@ gastoForm.addEventListener('submit', async (e) => {
       enlaceComprobante: enlace,
       pagadoPor: currentUser.uid,
       pagadoPorEmail: currentUser.email,
-      pagadoPorNombre: currentUser.email.split('@')[0],
+      pagadoPorNombre: nombreReal,
       fecha: new Date().toISOString()
     });
 
@@ -401,7 +461,7 @@ gastoForm.addEventListener('submit', async (e) => {
         await addDoc(collection(db, 'notificaciones'), {
           paraEmail: correoDestino,
           deEmail: currentUser.email,
-          mensaje: `${currentUser.email.split('@')[0]} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras (${VERCEL_APP_URL}).`,
+          mensaje: `${nombreReal} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras (${VERCEL_APP_URL}).`,
           montoCuota: cuotaPorPersona,
           leida: false,
           fecha: new Date().toISOString()
@@ -411,7 +471,7 @@ gastoForm.addEventListener('submit', async (e) => {
           try {
             await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
               to_email: correoDestino,
-              from_name: currentUser.email.split('@')[0],
+              from_name: nombreReal,
               from_email: currentUser.email,
               titulo: titulo,
               categoria: categoria,
