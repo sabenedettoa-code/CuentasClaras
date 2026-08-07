@@ -62,10 +62,20 @@ const authTitle = document.getElementById('auth-title');
 const toggleText = document.getElementById('toggle-text');
 const authMessage = document.getElementById('auth-message');
 
+const welcomeUserTitle = document.getElementById('welcome-user-title');
+const btnInstallPwa = document.getElementById('btn-install-pwa');
+
 const modalTutorial = document.getElementById('modal-tutorial');
 const btnTutorial = document.getElementById('btn-tutorial');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const btnEntendido = document.getElementById('btn-entendido');
+
+const modalConfirm = document.getElementById('modal-confirm');
+const confirmTitle = document.getElementById('confirm-title');
+const confirmMessage = document.getElementById('confirm-message');
+const confirmIcon = document.getElementById('confirm-icon');
+const btnConfirmCancel = document.getElementById('btn-confirm-cancel');
+const btnConfirmAccept = document.getElementById('btn-confirm-accept');
 
 const selectGrupos = document.getElementById('select-grupos');
 const sinHogarBox = document.getElementById('sin-hogar-box');
@@ -93,6 +103,7 @@ let listaMisGrupos = [];
 let isLogin = true;
 let unsubscribeGastos = null;
 let unsubscribeHogar = null;
+let deferredPrompt = null;
 
 function formatearCLP(monto) {
   return new Intl.NumberFormat('es-CL', {
@@ -100,6 +111,55 @@ function formatearCLP(monto) {
     currency: 'CLP',
     maximumFractionDigits: 0
   }).format(monto);
+}
+
+// --- PWA: LÓGICA PARA BANDERILLA Y BOTÓN AÑADIR A PANTALLA DE INICIO ---
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  btnInstallPwa.classList.remove('hidden');
+});
+
+btnInstallPwa.addEventListener('click', async () => {
+  if (deferredPrompt) {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      btnInstallPwa.classList.add('hidden');
+    }
+    deferredPrompt = null;
+  }
+});
+
+// --- VENTANA FLOTANTE DE CONFIRMACIÓN ---
+function mostrarConfirmacion({ titulo, mensaje, icono = '⚠️', textoBoton = 'Confirmar' }) {
+  return new Promise((resolve) => {
+    confirmTitle.textContent = titulo;
+    confirmMessage.textContent = mensaje;
+    confirmIcon.textContent = icono;
+    btnConfirmAccept.textContent = textoBoton;
+
+    modalConfirm.classList.remove('hidden');
+
+    const handleAccept = () => {
+      cleanup();
+      resolve(true);
+    };
+
+    const handleCancel = () => {
+      cleanup();
+      resolve(false);
+    };
+
+    const cleanup = () => {
+      modalConfirm.classList.add('hidden');
+      btnConfirmAccept.removeEventListener('click', handleAccept);
+      btnConfirmCancel.removeEventListener('click', handleCancel);
+    };
+
+    btnConfirmAccept.addEventListener('click', handleAccept);
+    btnConfirmCancel.addEventListener('click', handleCancel);
+  });
 }
 
 // TUTORIAL
@@ -166,6 +226,11 @@ btnLogout.addEventListener('click', () => signOut(auth));
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
+    
+    // Personalizar banner de bienvenida con el nombre o correo
+    const nombreUsuario = user.displayName || user.email.split('@')[0];
+    welcomeUserTitle.textContent = `¡Bienvenido/a de nuevo, ${nombreUsuario}!`;
+
     authContainer.classList.add('hidden');
     appContainer.classList.remove('hidden');
     escucharNotificaciones(user.email);
@@ -228,7 +293,7 @@ function escucharNotificaciones(userEmail) {
   });
 }
 
-// --- GESTIÓN DE MÚLTIPLES GRUPOS CON REAL-TIME INTEGRANTES ---
+// --- GESTIÓN DE MÚLTIPLES GRUPOS ---
 
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -283,7 +348,6 @@ function seleccionarGrupoActivo(grupoId) {
   gastoSection.classList.remove('hidden');
   historialSection.classList.remove('hidden');
 
-  // Escuchar cambios en el documento del Hogar (si entra un nuevo integrante)
   if (unsubscribeHogar) unsubscribeHogar();
   unsubscribeHogar = onSnapshot(doc(db, 'hogares', currentHogar.id), (docSnap) => {
     if (docSnap.exists()) {
@@ -297,7 +361,7 @@ function seleccionarGrupoActivo(grupoId) {
 
 btnCrearHogar.addEventListener('click', async () => {
   const nombre = nombreHogarInput.value.trim();
-  if (!nombre) return alert('Ingresa un nombre para el grupo');
+  if (!nombre) return;
 
   const codigo = generarCodigo();
 
@@ -318,14 +382,14 @@ btnCrearHogar.addEventListener('click', async () => {
 
 btnUnirseHogar.addEventListener('click', async () => {
   const codigo = codigoUnirseInput.value.trim().toUpperCase();
-  if (!codigo) return alert('Ingresa un código');
+  if (!codigo) return;
 
   try {
     const q = query(collection(db, 'hogares'), where('codigo', '==', codigo));
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      return alert('Código no encontrado.');
+      return;
     }
 
     const hogarDoc = snapshot.docs[0];
@@ -357,7 +421,6 @@ btnCompartir.addEventListener('click', async () => {
     }
   } else {
     navigator.clipboard.writeText(textoCompartir);
-    alert('¡Mensaje copiado al portapapeles!');
   }
 });
 
@@ -366,7 +429,7 @@ btnCompartir.addEventListener('click', async () => {
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  if (!currentHogar) return alert("Selecciona un grupo primero");
+  if (!currentHogar) return;
 
   const titulo = document.getElementById('titulo').value.trim();
   const categoria = document.getElementById('categoria').value;
@@ -385,7 +448,6 @@ gastoForm.addEventListener('submit', async (e) => {
       .filter(c => c.length > 0 && c !== currentUser.email);
   }
 
-  // Si no hay correos escritos, dividir entre los integrantes reales del grupo (mínimo 2)
   const numIntegrantesGroup = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
   const totalPersonasDividiendo = correosLista.length > 0 ? (1 + correosLista.length) : numIntegrantesGroup;
   const cuotaPorPersona = monto / totalPersonasDividiendo;
@@ -483,14 +545,20 @@ function escucharGastosEnTiempoReal() {
 
     document.querySelectorAll('.btn-delete').forEach(btn => {
       btn.addEventListener('click', async (e) => {
-        if (confirm('¿Deseas eliminar este registro de gasto?')) {
+        const confirmado = await mostrarConfirmacion({
+          titulo: '¿Eliminar este gasto?',
+          mensaje: 'El registro se borrará del historial y afectará el cálculo del balance.',
+          icono: '🗑️',
+          textoBoton: 'Eliminar'
+        });
+
+        if (confirmado) {
           const gastoId = e.target.dataset.id;
           await deleteDoc(doc(db, 'gastos', gastoId));
         }
       });
     });
 
-    // Mínimo 2 integrantes para calcular reparto compartido
     const numIntegrantesGroup = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
     const cuotaPorPersona = totalCompartido / numIntegrantesGroup;
     const miDiferencia = pagadoPorMiCompartido - cuotaPorPersona;
@@ -509,7 +577,14 @@ function escucharGastosEnTiempoReal() {
 }
 
 btnSaldar.addEventListener('click', async () => {
-  if (confirm(`¿Confirmas que ya se realizó el pago para saldar las cuentas de "${currentHogar.nombre}"?`)) {
+  const confirmado = await mostrarConfirmacion({
+    titulo: '¿Saldar cuentas del grupo?',
+    mensaje: `Confirmas que ya se realizó el pago. Las cuentas de "${currentHogar.nombre}" volverán a cero.`,
+    icono: '✅',
+    textoBoton: 'Saldar Cuentas'
+  });
+
+  if (confirmado) {
     const q = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
     const snapshot = await getDocs(q);
 
@@ -519,8 +594,6 @@ btnSaldar.addEventListener('click', async () => {
         await updateDoc(doc(db, 'gastos', documento.id), { esCompartido: false });
       }
     });
-
-    alert('¡Cuentas saldadas con éxito!');
   }
 });
 

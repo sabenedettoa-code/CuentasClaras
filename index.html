@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CuentasClaras</title>
+  <title>CuentasClaras - Gastos Compartidos</title>
+
+  <!-- MANIFIESTO PWA PARA INSTALACIÓN EN PANTALLA DE INICIO -->
+  <link rel="manifest" href="data:application/manifest+json;utf8,{%22name%22:%22CuentasClaras%22,%22short_name%22:%22CuentasClaras%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230b0f17%22,%22theme_color%22:%22%2310b981%22,%22icons%22:[{%22src%22:%22data:image/svg%2Bxml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20100%20100%22%3E%3Ctext%20y=%22.9em%22%20font-size=%2290%22%3E💸%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg%2Bxml%22}]}">
   
   <!-- FAVICON -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💸</text></svg>">
@@ -69,10 +72,23 @@
         <h1>CuentasClaras</h1>
       </div>
       <div class="header-actions">
-        <button id="btn-tutorial" class="btn-secondary" type="button">❓ ¿Cómo funciona?</button>
+        <!-- BOTÓN INSTALAR APP EN PANTALLA DE INICIO -->
+        <button id="btn-install-pwa" class="btn-pwa hidden" type="button">📲 Instalar App</button>
+        <button id="btn-tutorial" class="btn-secondary" type="button">❓ Ayuda</button>
         <button id="btn-logout" class="btn-secondary" type="button">Cerrar Sesión</button>
       </div>
     </header>
+
+    <!-- TARJETA DE BIENVENIDA PERSONALIZADA -->
+    <section id="welcome-banner" class="card welcome-user-card">
+      <div class="welcome-user-content">
+        <div class="welcome-avatar">👋</div>
+        <div>
+          <h2 id="welcome-user-title">¡Bienvenido/a de nuevo!</h2>
+          <p class="subtitle" style="margin-bottom: 0;">Es un gusto tenerte de vuelta. Aquí está el resumen de tus grupos y cuentas compartidas.</p>
+        </div>
+      </div>
+    </section>
 
     <!-- PANEL DE NOTIFICACIONES -->
     <section id="notificaciones-section" class="card hidden">
@@ -209,12 +225,25 @@
 
         <div class="step-item">
           <span class="step-num">3</span>
-          <strong>Notificaciones en tiempo real y e-mail</strong>
-          <p>Notificaciones internas y envío de correo real a la bandeja de entrada.</p>
+          <strong>Añadir a Pantalla de Inicio</strong>
+          <p>Usa el botón "📲 Instalar App" arriba para tener CuentasClaras directo en tu pantalla de inicio.</p>
         </div>
       </div>
 
       <button id="btn-entendido" class="btn-primary margin-top">¡Entendido, ir a mis cuentas!</button>
+    </div>
+  </div>
+
+  <!-- MODAL FLOTANTE DE CONFIRMACIÓN -->
+  <div id="modal-confirm" class="modal-backdrop hidden">
+    <div class="modal-card modal-small">
+      <div class="modal-icon" id="confirm-icon">⚠️</div>
+      <h3 id="confirm-title" class="modal-confirm-title">¿Estás seguro?</h3>
+      <p id="confirm-message" class="modal-confirm-desc">Esta acción no se puede deshacer.</p>
+      <div class="modal-actions">
+        <button id="btn-confirm-cancel" class="btn-secondary">Cancelar</button>
+        <button id="btn-confirm-accept" class="btn-danger">Confirmar</button>
+      </div>
     </div>
   </div>
 
