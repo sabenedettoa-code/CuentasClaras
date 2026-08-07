@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CuentasClaras - Gastos Compartidos</title>
 
-  <!-- MANIFIESTO PWA PARA INSTALACIÓN EN PANTALLA DE INICIO -->
+  <!-- MANIFIESTO PWA -->
   <link rel="manifest" href="data:application/manifest+json;utf8,{%22name%22:%22CuentasClaras%22,%22short_name%22:%22CuentasClaras%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230b0f17%22,%22theme_color%22:%22%2310b981%22,%22icons%22:[{%22src%22:%22data:image/svg%2Bxml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20100%20100%22%3E%3Ctext%20y=%22.9em%22%20font-size=%2290%22%3E💸%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg%2Bxml%22}]}">
   
   <!-- FAVICON -->
@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   
-  <!-- LIBRERÍA EMAILJS PARA ENVÍO DE CORREOS REALES -->
+  <!-- LIBRERÍA EMAILJS -->
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 
   <link rel="stylesheet" href="style.css">
@@ -83,7 +83,7 @@
       </div>
     </header>
 
-    <!-- TARJETA DE BIENVENIDA PERSONALIZADA -->
+    <!-- TARJETA DE BIENVENIDA -->
     <section id="welcome-banner" class="card welcome-user-card">
       <div class="welcome-user-content">
         <div class="welcome-avatar">👋</div>
@@ -100,7 +100,7 @@
       <div id="lista-notificaciones"></div>
     </section>
 
-    <!-- SECCIÓN 1: SELECCIÓN Y CREACIÓN DE MÚLTIPLES GRUPOS -->
+    <!-- SECCIÓN 1: SELECCIÓN Y CREACIÓN DE GRUPOS -->
     <section id="hogar-section" class="card">
       <h2>👥 Tus Grupos de Cuentas</h2>
       
@@ -117,7 +117,6 @@
           <button id="btn-compartir" class="btn-share" type="button">📲 Compartir Código</button>
         </div>
 
-        <!-- ACCIONES PARA EDITAR Y ELIMINAR EL GRUPO SELECCIONADO -->
         <div class="grupo-admin-actions margin-top">
           <button id="btn-renombrar-grupo" class="btn-secondary-sm" type="button">✏️ Renombrar Grupo</button>
           <button id="btn-eliminar-grupo" class="btn-danger-sm" type="button">🗑️ Eliminar Grupo</button>
@@ -235,8 +234,8 @@
 
         <div class="step-item">
           <span class="step-num">3</span>
-          <strong>Añadir a Pantalla de Inicio</strong>
-          <p>Usa el botón "📲 Instalar App" arriba para tener CuentasClaras directo en tu pantalla de inicio.</p>
+          <strong>Notificaciones y Pagos</strong>
+          <p>Al saldar o transferir, puedes adjuntar el comprobante de pago para avisarle por correo y app.</p>
         </div>
       </div>
 
@@ -266,6 +265,40 @@
       </div>
 
       <button id="btn-entendido-privacy" class="btn-primary margin-top">Aceptar y Cerrar</button>
+    </div>
+  </div>
+
+  <!-- MODAL FLOTANTE PARA COMPARTIR COMPROBANTE DE PAGO -->
+  <div id="modal-pago" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="welcome-header margin-bottom-zero">
+          <div class="welcome-logo">📄</div>
+          <div>
+            <h2>Enviar Comprobante de Pago</h2>
+            <p class="subtitle" style="margin-bottom: 0;">Adjunta el comprobante para avisarle a la persona que cobró.</p>
+          </div>
+        </div>
+        <button id="btn-close-pago" class="btn-close">&times;</button>
+      </div>
+
+      <form id="form-pago" class="margin-top">
+        <input type="hidden" id="pago-de-email">
+        <input type="hidden" id="pago-para-email">
+        <input type="hidden" id="pago-titulo-gasto">
+        <input type="hidden" id="pago-monto-cuota">
+        <input type="hidden" id="pago-noti-id">
+
+        <div class="input-group">
+          <label for="link-comprobante-pago">Enlace al Comprobante de Transferencia (Google Drive / PDF / Imagen / Link)</label>
+          <input type="url" id="link-comprobante-pago" placeholder="https://drive.google.com/file/d/..." required>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-omitir-pago" type="button" class="btn-secondary">Solo Marcar Enterado</button>
+          <button type="submit" class="btn-primary">Enviar Comprobante y Avisar</button>
+        </div>
+      </form>
     </div>
   </div>
 

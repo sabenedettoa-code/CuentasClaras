@@ -76,6 +76,18 @@ const btnPrivacyApp = document.getElementById('btn-privacy-app');
 const btnClosePrivacy = document.getElementById('btn-close-privacy');
 const btnEntendidoPrivacy = document.getElementById('btn-entendido-privacy');
 
+// Elementos del Modal de Pago
+const modalPago = document.getElementById('modal-pago');
+const formPago = document.getElementById('form-pago');
+const btnClosePago = document.getElementById('btn-close-pago');
+const btnOmitirPago = document.getElementById('btn-omitir-pago');
+const inputPagoDeEmail = document.getElementById('pago-de-email');
+const inputPagoParaEmail = document.getElementById('pago-para-email');
+const inputPagoTituloGasto = document.getElementById('pago-titulo-gasto');
+const inputPagoMontoCuota = document.getElementById('pago-monto-cuota');
+const inputPagoNotiId = document.getElementById('pago-noti-id');
+const linkComprobantePago = document.getElementById('link-comprobante-pago');
+
 const modalConfirm = document.getElementById('modal-confirm');
 const confirmTitle = document.getElementById('confirm-title');
 const confirmMessage = document.getElementById('confirm-message');
@@ -122,7 +134,7 @@ function formatearCLP(monto) {
   }).format(monto);
 }
 
-// PWA: INSTALACIÓN EN PANTALLA DE INICIO
+// PWA
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
@@ -171,7 +183,7 @@ function mostrarConfirmacion({ titulo, mensaje, icono = '⚠️', textoBoton = '
   });
 }
 
-// TUTORIAL Y PRIVACIDAD
+// MODALES
 btnTutorial.addEventListener('click', () => modalTutorial.classList.remove('hidden'));
 btnCloseModal.addEventListener('click', () => modalTutorial.classList.add('hidden'));
 btnEntendido.addEventListener('click', () => modalTutorial.classList.add('hidden'));
@@ -180,6 +192,8 @@ btnPrivacyAuth.addEventListener('click', () => modalPrivacy.classList.remove('hi
 btnPrivacyApp.addEventListener('click', () => modalPrivacy.classList.remove('hidden'));
 btnClosePrivacy.addEventListener('click', () => modalPrivacy.classList.add('hidden'));
 btnEntendidoPrivacy.addEventListener('click', () => modalPrivacy.classList.add('hidden'));
+
+btnClosePago.addEventListener('click', () => modalPago.classList.add('hidden'));
 
 tipoGastoSelect.addEventListener('change', (e) => {
   if (e.target.value === 'personal') {
@@ -257,7 +271,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// NOTIFICACIONES
+// NOTIFICACIONES EN TIEMPO REAL CON BOTÓN PARA ADJUNTAR PAGO
 function escucharNotificaciones(userEmail) {
   const q = query(
     collection(db, 'notificaciones'), 
@@ -286,25 +300,100 @@ function escucharNotificaciones(userEmail) {
         <div>
           <strong>📩 Nuevo gasto asignado</strong>
           <p style="font-size: 0.85rem; color: #9ca3af;">${noti.mensaje}</p>
-          <button class="btn-noti-check" data-id="${documento.id}">✓ Marcar como enterado</button>
+          <button class="btn-noti-check" 
+                  data-id="${documento.id}"
+                  data-de="${noti.deEmail}"
+                  data-monto="${noti.montoCuota || 0}"
+                  data-titulo="${noti.mensaje}">
+            ✓ Marcar como enterado / Enviar Pago
+          </button>
         </div>
         <div style="color: #ef4444; font-weight: bold;">
-          Debes: ${formatearCLP(noti.montoCuota)}
+          Debes: ${formatearCLP(noti.montoCuota || 0)}
         </div>
       `;
       notiContainer.appendChild(div);
     });
 
+    // Abrir modal de comprobante de pago al hacer clic
     document.querySelectorAll('.btn-noti-check').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
+      btn.addEventListener('click', (e) => {
         const notiId = e.target.dataset.id;
-        await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+        const deEmail = e.target.dataset.de;
+        const monto = e.target.dataset.monto;
+        const titulo = e.target.dataset.titulo;
+
+        inputPagoNotiId.value = notiId;
+        inputPagoParaEmail.value = deEmail;
+        inputPagoMontoCuota.value = monto;
+        inputPagoTituloGasto.value = titulo;
+
+        linkComprobantePago.value = '';
+        modalPago.classList.remove('hidden');
       });
     });
   });
 }
 
-// GESTIÓN Y ADMINISTRACIÓN DE GRUPOS (RENOMBRAR Y ELIMINAR)
+// OMITIR PAGO (Solo marcar leída)
+btnOmitirPago.addEventListener('click', async () => {
+  const notiId = inputPagoNotiId.value;
+  if (notiId) {
+    await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+  }
+  modalPago.classList.add('hidden');
+});
+
+// FORMULARIO DE ENVÍO DE COMPROBANTE DE PAGO
+formPago.addEventListener('submit', async (e) => {
+  e.preventDefault();
+
+  const notiId = inputPagoNotiId.value;
+  const paraEmail = inputPagoParaEmail.value;
+  const monto = parseFloat(inputPagoMontoCuota.value);
+  const titulo = inputPagoTituloGasto.value;
+  const linkComprobante = linkComprobantePago.value.trim();
+
+  try {
+    // 1. Marcar notificación previa como leída
+    if (notiId) {
+      await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+    }
+
+    // 2. Crear notificación INTERNA para la persona que cobró
+    await addDoc(collection(db, 'notificaciones'), {
+      paraEmail: paraEmail,
+      deEmail: currentUser.email,
+      mensaje: `💸 ${currentUser.email.split('@')[0]} te ha transferido su cuota para "${titulo}". Comprobante: ${linkComprobante}`,
+      montoCuota: 0,
+      leida: false,
+      fecha: new Date().toISOString()
+    });
+
+    // 3. Enviar CORREO REAL mediante EmailJS a la persona que cobró
+    if (typeof emailjs !== "undefined") {
+      try {
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+          to_email: paraEmail,
+          from_name: currentUser.email.split('@')[0],
+          from_email: currentUser.email,
+          titulo: `Pago de: ${titulo}`,
+          categoria: "Transferencia Recibida",
+          monto_cuota: `${formatearCLP(monto)} (Comprobante: ${linkComprobante})`
+        });
+      } catch (errEmail) {
+        console.error("Error al enviar correo de confirmación de pago:", errEmail);
+      }
+    }
+
+    modalPago.classList.add('hidden');
+    alert('¡Comprobante de transferencia enviado con éxito!');
+  } catch (error) {
+    console.error('Error al procesar pago:', error);
+  }
+});
+
+// GESTIÓN Y ADMINISTRACIÓN DE GRUPOS
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -369,7 +458,6 @@ function seleccionarGrupoActivo(grupoId) {
   });
 }
 
-// RENOMBRAR GRUPO
 btnRenombrarGrupo.addEventListener('click', async () => {
   if (!currentHogar) return;
 
@@ -383,7 +471,6 @@ btnRenombrarGrupo.addEventListener('click', async () => {
   }
 });
 
-// ELIMINAR GRUPO
 btnEliminarGrupo.addEventListener('click', async () => {
   if (!currentHogar) return;
 
@@ -395,17 +482,13 @@ btnEliminarGrupo.addEventListener('click', async () => {
   });
 
   if (confirmado) {
-    // 1. Borrar todos los gastos vinculados a este hogar
     const qGastos = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
     const snapshotGastos = await getDocs(qGastos);
     snapshotGastos.forEach(async (documento) => {
       await deleteDoc(doc(db, 'gastos', documento.id));
     });
 
-    // 2. Borrar el documento del hogar
     await deleteDoc(doc(db, 'hogares', currentHogar.id));
-
-    // 3. Recargar grupos
     await cargarGruposUsuario();
   }
 });
