@@ -21,58 +21,16 @@ import {
   onSnapshot 
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// --- CONFIGURACIÓN DE EMAILJS CON TUS CLAVES REALES ---
+// --- CONFIGURACIÓN DE EMAILJS ---
 const EMAILJS_PUBLIC_KEY = "e_uovUaQx61cm7X24"; 
 const EMAILJS_SERVICE_ID = "service_v89l5mz"; 
 const EMAILJS_TEMPLATE_ID = "template_qiaonxj"; 
 
-// Inicializar EmailJS
 if (typeof emailjs !== "undefined") {
   emailjs.init(EMAILJS_PUBLIC_KEY);
 }
 
 // Configuración de Firebase
-const firebaseConfig = {
-  apiKey: "AIzaSyAtECy4MkyBnzYG_ZtIGDLl_75Yedo66NM",
-  authDomain: "gastoshogarapp-1bbae.firebaseapp.com",
-  projectId: "gastoshogarapp-1bbae",
-  storageBucket: "gastoshogarapp-1bbae.firebasestorage.app",
-  messagingSenderId: "1040938444301",
-  appId: "1:1040938444301:web:e5563e8662aa950551d744",
-  measurementId: "G-JMS3FCFM4L"
-};
-
-const VERCEL_APP_URL = "https://appcuentasclaras.vercel.app";
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const googleProvider = new GoogleAuthProvider();
-
-// ... (El resto del código de app.js se mantiene exactamente igual)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { 
-  getAuth, 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword, 
-  signOut, 
-  onAuthStateChanged,
-  GoogleAuthProvider,
-  signInWithPopup
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  doc, 
-  updateDoc,
-  deleteDoc,
-  query, 
-  where,
-  onSnapshot 
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
 const firebaseConfig = {
   apiKey: "AIzaSyAtECy4MkyBnzYG_ZtIGDLl_75Yedo66NM",
   authDomain: "gastoshogarapp-1bbae.firebaseapp.com",
@@ -188,9 +146,17 @@ authForm.addEventListener('submit', async (e) => {
 btnGoogle.addEventListener('click', async () => {
   mostrarMensaje('Conectando con Google...', 'info');
   try {
-    await signInWithPopup(auth, googleProvider);
+    const result = await signInWithPopup(auth, googleProvider);
+    console.log('Usuario autenticado con Google:', result.user);
   } catch (error) {
-    mostrarMensaje(traducirError(error.code), 'error');
+    console.error('Error al iniciar sesión con Google:', error);
+    if (error.code === 'auth/unauthorized-domain') {
+      mostrarMensaje('Error: Dominio no autorizado. Agrega appcuentasclaras.vercel.app en Firebase Auth.', 'error');
+    } else if (error.code === 'auth/popup-closed-by-user') {
+      mostrarMensaje('La ventana de inicio de sesión fue cerrada.', 'info');
+    } else {
+      mostrarMensaje(`Error con Google: ${error.message}`, 'error');
+    }
   }
 });
 
@@ -212,7 +178,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// --- NOTIFICACIONES EN TIEMPO REAL CON LINK A VERCEL ---
+// --- NOTIFICACIONES EN TIEMPO REAL ---
 
 function escucharNotificaciones(userEmail) {
   const q = query(
@@ -387,7 +353,7 @@ btnCompartir.addEventListener('click', async () => {
   }
 });
 
-// --- REGISTRO Y NOTIFICACIÓN MÚLTIPLE DE INTEGRANTES ---
+// --- REGISTRO DE GASTOS Y ENVÍO DE CORREOS ---
 
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -403,7 +369,6 @@ gastoForm.addEventListener('submit', async (e) => {
 
   const esCompartido = tipoGasto === 'compartido';
 
-  // Procesar lista de correos separados por comas
   let correosLista = [];
   if (esCompartido && correosRaw) {
     correosLista = correosRaw
@@ -412,7 +377,6 @@ gastoForm.addEventListener('submit', async (e) => {
       .filter(c => c.length > 0 && c !== currentUser.email);
   }
 
-  // El total de personas dividiendo = Creador (1) + Correos ingresados
   const totalPersonasDividiendo = 1 + correosLista.length;
   const cuotaPorPersona = monto / totalPersonasDividiendo;
 
@@ -431,9 +395,9 @@ gastoForm.addEventListener('submit', async (e) => {
       fecha: new Date().toISOString()
     });
 
-    // Crear notificación individual para cada correo ingresado
     if (esCompartido && correosLista.length > 0) {
       for (const correoDestino of correosLista) {
+        
         await addDoc(collection(db, 'notificaciones'), {
           paraEmail: correoDestino,
           deEmail: currentUser.email,
@@ -442,6 +406,21 @@ gastoForm.addEventListener('submit', async (e) => {
           leida: false,
           fecha: new Date().toISOString()
         });
+
+        if (typeof emailjs !== "undefined") {
+          try {
+            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+              to_email: correoDestino,
+              from_name: currentUser.email.split('@')[0],
+              from_email: currentUser.email,
+              titulo: titulo,
+              categoria: categoria,
+              monto_cuota: formatearCLP(cuotaPorPersona)
+            });
+          } catch (errEmail) {
+            console.error("Error al enviar correo con EmailJS:", errEmail);
+          }
+        }
       }
     }
 
@@ -501,7 +480,6 @@ function escucharGastosEnTiempoReal() {
       });
     });
 
-    // División basada en los integrantes actuales del grupo
     const numIntegrantesGroup = (currentHogar.integrantes && currentHogar.integrantes.length > 0) ? currentHogar.integrantes.length : 2;
     const cuotaPorPersona = totalCompartido / numIntegrantesGroup;
     const miDiferencia = pagadoPorMiCompartido - cuotaPorPersona;

@@ -235,7 +235,6 @@ input:focus, select:focus {
   margin-top: 6px;
 }
 
-/* MODAL Y TUTORIAL APARTE */
 .modal-backdrop {
   position: fixed;
   top: 0; left: 0;
