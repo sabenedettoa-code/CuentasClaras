@@ -87,9 +87,20 @@
     <section id="welcome-banner" class="card welcome-user-card">
       <div class="welcome-user-content">
         <div class="welcome-avatar">👋</div>
-        <div>
+        <div style="flex:1;">
           <h2 id="welcome-user-title">¡Bienvenido/a de nuevo!</h2>
-          <p class="subtitle" style="margin-bottom: 0;">Es un gusto tenerte de vuelta. Aquí está el resumen de tus grupos y cuentas compartidas.</p>
+          <p class="subtitle" style="margin-bottom: 0;">Resumen de tus grupos y balances de deudas.</p>
+        </div>
+        <div>
+          <label for="select-moneda" style="font-size: 0.75rem; margin-bottom:2px;">Moneda:</label>
+          <select id="select-moneda" style="padding: 6px; font-size: 0.85rem;">
+            <option value="CLP">CLP ($)</option>
+            <option value="USD">USD ($)</option>
+            <option value="EUR">EUR (€)</option>
+            <option value="ARS">ARS ($)</option>
+            <option value="MXN">MXN ($)</option>
+            <option value="COP">COP ($)</option>
+          </select>
         </div>
       </div>
     </section>
@@ -118,7 +129,7 @@
         </div>
 
         <div class="grupo-admin-actions margin-top">
-          <button id="btn-renombrar-grupo" class="btn-secondary-sm" type="button">✏️ Renombrar Grupo</button>
+          <button id="btn-renombrar-grupo" class="btn-secondary-sm" type="button">✏️ Renombrar</button>
           <button id="btn-eliminar-grupo" class="btn-danger-sm" type="button">🗑️ Eliminar Grupo</button>
         </div>
       </div>
@@ -127,7 +138,7 @@
 
       <div id="sin-hogar-box">
         <div class="flex-gap">
-          <input type="text" id="nombre-hogar-input" placeholder="Nombre (Ej: Casa, Dpto 302, Viaje)">
+          <input type="text" id="nombre-hogar-input" placeholder="Nombre (Ej: Casa, Viaje, Depto)">
           <button id="btn-crear-hogar" class="btn-primary">Crear Grupo</button>
         </div>
         <div class="flex-gap margin-top">
@@ -137,12 +148,19 @@
       </div>
     </section>
 
-    <!-- SECCIÓN 2: BALANCE DE DEUDAS (CLP) -->
+    <!-- SECCIÓN 2: BALANCE Y DESGLOSE INDIVIDUAL DE DEUDAS -->
     <section id="balance-section" class="card hidden">
-      <h2>⚖️ Estado de Deudas (CLP)</h2>
+      <h2>⚖️ Estado de Deudas</h2>
       <div class="balance-box" id="balance-display">
         Selecciona o crea un grupo...
       </div>
+      
+      <!-- DESGLOSE DETALLADO INTEGRANTES -->
+      <div id="desglose-integrantes-box" class="margin-top hidden">
+        <h3 class="sub-section-title">📊 Desglose por Integrante</h3>
+        <div id="lista-desglose-integrantes" class="desglose-grid"></div>
+      </div>
+
       <button id="btn-saldar" class="btn-saldar margin-top hidden" type="button">✅ Saldar y Reiniciar Cuentas</button>
     </section>
 
@@ -169,7 +187,7 @@
           </div>
 
           <div class="input-group">
-            <label for="monto">Monto Total ($ CLP)</label>
+            <label for="monto">Monto Total</label>
             <input type="number" id="monto" min="1" step="1" placeholder="45000" required>
           </div>
         </div>
@@ -190,18 +208,36 @@
         </div>
 
         <div class="input-group">
-          <label for="enlace">Enlace al Comprobante (Google Drive / PDF / Link)</label>
-          <input type="url" id="enlace" placeholder="https://drive.google.com/file/d/...">
+          <label for="file-comprobante-gasto">Adjuntar Archivo Comprobante (JPG, PNG, PDF)</label>
+          <input type="file" id="file-comprobante-gasto" accept="image/*,application/pdf">
         </div>
 
         <button type="submit" class="btn-primary">Guardar Gasto</button>
       </form>
     </section>
 
-    <!-- SECCIÓN 4: HISTORIAL DE GASTOS -->
+    <!-- SECCIÓN 4: HISTORIAL DE GASTOS CON FILTROS Y EXPORTACIÓN -->
     <section id="historial-section" class="card hidden">
-      <h2>📜 Historial de Cuentas del Grupo</h2>
-      <ul id="lista-gastos" class="gastos-list"></ul>
+      <div class="section-header-row">
+        <h2>📜 Historial del Grupo</h2>
+        <button id="btn-exportar-csv" class="btn-share" type="button">📥 Exportar CSV</button>
+      </div>
+
+      <!-- FILTROS Y BUSCADOR -->
+      <div class="filtros-grid margin-top">
+        <input type="text" id="filter-search" placeholder="🔍 Buscar gasto por nombre...">
+        <select id="filter-categoria">
+          <option value="todas">Todas las Categorías</option>
+          <option value="Luz">💡 Luz</option>
+          <option value="Agua">💧 Agua</option>
+          <option value="Gas">🔥 Gas</option>
+          <option value="Restaurante">🍽️ Restaurante</option>
+          <option value="Supermercado">🛒 Supermercado</option>
+          <option value="Otro">📦 Otro</option>
+        </select>
+      </div>
+
+      <ul id="lista-gastos" class="gastos-list margin-top"></ul>
     </section>
   </div>
 
@@ -222,20 +258,20 @@
       <div class="steps-grid margin-top">
         <div class="step-item">
           <span class="step-num">1</span>
-          <strong>Crea o selecciona tus grupos</strong>
-          <p>Puedes tener múltiples grupos (Ej: Casa, Viaje, Depto). Comparte el código único con tus amigos.</p>
+          <strong>Desglose Individual</strong>
+          <p>Mira exactamente cuánto debe o tiene a favor cada participante del grupo.</p>
         </div>
 
         <div class="step-item">
           <span class="step-num">2</span>
-          <strong>Añade varios integrantes</strong>
-          <p>Ingresa sus correos separados por coma y la cuota se calculará automáticamente entre todos.</p>
+          <strong>Filtros y Exportación</strong>
+          <p>Busca tus gastos por categoría o descarga el informe a Excel/CSV en un clic.</p>
         </div>
 
         <div class="step-item">
           <span class="step-num">3</span>
-          <strong>Notificaciones y Pagos</strong>
-          <p>Al saldar o transferir, puedes adjuntar el comprobante de pago para avisarle por correo y app.</p>
+          <strong>Compresión de Imágenes</strong>
+          <p>Las fotos de tus boletas se optimizan automáticamente para subir rápido.</p>
         </div>
       </div>
 
@@ -258,17 +294,17 @@
       </div>
 
       <div class="privacy-body margin-top">
-        <p><strong>1. Uso de Información:</strong> CuentasClaras utiliza tu correo electrónico e identificación única para autenticar tu cuenta mediante Google / Firebase Authentication y asociarte a tus grupos de gastos.</p>
-        <p class="margin-top"><strong>2. Almacenamiento Seguro:</strong> Los registros de gastos, comprobantes y balances se guardan en Google Firestore de forma encriptada y son accesibles únicamente por los integrantes autorizados mediante el código de grupo.</p>
-        <p class="margin-top"><strong>3. Envío de Notificaciones:</strong> Los correos electrónicos de aviso se procesan a través de EmailJS exclusivamente para notificar la asignación de cuotas pendientes.</p>
-        <p class="margin-top"><strong>4. Eliminación de Datos:</strong> Puedes eliminar tus registros de gastos o borrar grupos completos en cualquier momento utilizando los botones de administración dentro de la aplicación.</p>
+        <p><strong>1. Uso de Información:</strong> CuentasClaras utiliza tu correo electrónico para autenticar tu cuenta e integrarte en tus grupos de gastos.</p>
+        <p class="margin-top"><strong>2. Almacenamiento Seguro:</strong> Los registros y comprobantes optimizados se guardan en Google Firestore de forma encriptada.</p>
+        <p class="margin-top"><strong>3. Envío de Notificaciones:</strong> Los correos se procesan a través de EmailJS exclusivamente para notificar asignaciones o transferencias.</p>
+        <p class="margin-top"><strong>4. Eliminación de Datos:</strong> Puedes eliminar registros de gastos o borrar grupos enteros cuando lo desees.</p>
       </div>
 
       <button id="btn-entendido-privacy" class="btn-primary margin-top">Aceptar y Cerrar</button>
     </div>
   </div>
 
-  <!-- MODAL FLOTANTE PARA COMPARTIR COMPROBANTE DE PAGO -->
+  <!-- MODAL ADJUNTAR PAGO -->
   <div id="modal-pago" class="modal-backdrop hidden">
     <div class="modal-card">
       <div class="modal-header">
@@ -276,7 +312,7 @@
           <div class="welcome-logo">📄</div>
           <div>
             <h2>Enviar Comprobante de Pago</h2>
-            <p class="subtitle" style="margin-bottom: 0;">Adjunta el comprobante para avisarle a la persona que cobró.</p>
+            <p class="subtitle" style="margin-bottom: 0;">Adjunta la imagen de la transferencia.</p>
           </div>
         </div>
         <button id="btn-close-pago" class="btn-close">&times;</button>
@@ -290,19 +326,19 @@
         <input type="hidden" id="pago-noti-id">
 
         <div class="input-group">
-          <label for="link-comprobante-pago">Enlace al Comprobante de Transferencia (Google Drive / PDF / Imagen / Link)</label>
-          <input type="url" id="link-comprobante-pago" placeholder="https://drive.google.com/file/d/..." required>
+          <label for="file-comprobante-pago">Adjuntar Comprobante (Imagen o PDF)</label>
+          <input type="file" id="file-comprobante-pago" accept="image/*,application/pdf" required>
         </div>
 
         <div class="modal-actions">
           <button id="btn-omitir-pago" type="button" class="btn-secondary">Solo Marcar Enterado</button>
-          <button type="submit" class="btn-primary">Enviar Comprobante y Avisar</button>
+          <button type="submit" class="btn-primary">Enviar Comprobante</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- MODAL FLOTANTE DE CONFIRMACIÓN -->
+  <!-- MODAL CONFIRMACIÓN -->
   <div id="modal-confirm" class="modal-backdrop hidden">
     <div class="modal-card modal-small">
       <div class="modal-icon" id="confirm-icon">⚠️</div>

@@ -6,7 +6,8 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  updateProfile
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { 
   getFirestore, 
@@ -48,7 +49,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const googleProvider = new GoogleAuthProvider();
 
-// Elementos DOM
+// DOM
 const authContainer = document.getElementById('auth-container');
 const appContainer = document.getElementById('app-container');
 const authForm = document.getElementById('auth-form');
@@ -64,6 +65,7 @@ const authMessage = document.getElementById('auth-message');
 
 const welcomeUserTitle = document.getElementById('welcome-user-title');
 const btnInstallPwa = document.getElementById('btn-install-pwa');
+const selectMoneda = document.getElementById('select-moneda');
 
 const modalTutorial = document.getElementById('modal-tutorial');
 const btnTutorial = document.getElementById('btn-tutorial');
@@ -76,17 +78,16 @@ const btnPrivacyApp = document.getElementById('btn-privacy-app');
 const btnClosePrivacy = document.getElementById('btn-close-privacy');
 const btnEntendidoPrivacy = document.getElementById('btn-entendido-privacy');
 
-// Elementos del Modal de Pago
 const modalPago = document.getElementById('modal-pago');
 const formPago = document.getElementById('form-pago');
 const btnClosePago = document.getElementById('btn-close-pago');
 const btnOmitirPago = document.getElementById('btn-omitir-pago');
-const inputPagoDeEmail = document.getElementById('pago-de-email');
 const inputPagoParaEmail = document.getElementById('pago-para-email');
 const inputPagoTituloGasto = document.getElementById('pago-titulo-gasto');
 const inputPagoMontoCuota = document.getElementById('pago-monto-cuota');
 const inputPagoNotiId = document.getElementById('pago-noti-id');
-const linkComprobantePago = document.getElementById('link-comprobante-pago');
+const fileComprobantePago = document.getElementById('file-comprobante-pago');
+const fileComprobanteGasto = document.getElementById('file-comprobante-gasto');
 
 const modalConfirm = document.getElementById('modal-confirm');
 const confirmTitle = document.getElementById('confirm-title');
@@ -111,9 +112,16 @@ const balanceSection = document.getElementById('balance-section');
 const gastoSection = document.getElementById('gasto-section');
 const historialSection = document.getElementById('historial-section');
 const balanceDisplay = document.getElementById('balance-display');
+const desgloseBox = document.getElementById('desglose-integrantes-box');
+const listaDesglose = document.getElementById('lista-desglose-integrantes');
+
 const btnSaldar = document.getElementById('btn-saldar');
 const gastoForm = document.getElementById('gasto-form');
 const listaGastos = document.getElementById('lista-gastos');
+
+const filterSearch = document.getElementById('filter-search');
+const filterCategoria = document.getElementById('filter-categoria');
+const btnExportarCsv = document.getElementById('btn-exportar-csv');
 
 const tipoGastoSelect = document.getElementById('tipo-gasto');
 const grupoCorreoDeudor = document.getElementById('grupo-correo-deudor');
@@ -121,17 +129,77 @@ const grupoCorreoDeudor = document.getElementById('grupo-correo-deudor');
 let currentUser = null;
 let currentHogar = null;
 let listaMisGrupos = [];
+let todosLosGastosGrupo = [];
 let isLogin = true;
 let unsubscribeGastos = null;
 let unsubscribeHogar = null;
 let deferredPrompt = null;
+let monedaSeleccionada = 'CLP';
 
-function formatearCLP(monto) {
-  return new Intl.NumberFormat('es-CL', {
+selectMoneda.addEventListener('change', (e) => {
+  monedaSeleccionada = e.target.value;
+  if (currentHogar) escucharGastosEnTiempoReal();
+});
+
+function formatearMoneda(monto) {
+  const configs = {
+    CLP: { locale: 'es-CL', currency: 'CLP', decimals: 0 },
+    USD: { locale: 'en-US', currency: 'USD', decimals: 2 },
+    EUR: { locale: 'de-DE', currency: 'EUR', decimals: 2 },
+    ARS: { locale: 'es-AR', currency: 'ARS', decimals: 2 },
+    MXN: { locale: 'es-MX', currency: 'MXN', decimals: 2 },
+    COP: { locale: 'es-CO', currency: 'COP', decimals: 0 }
+  };
+  const cfg = configs[monedaSeleccionada] || configs.CLP;
+  return new Intl.NumberFormat(cfg.locale, {
     style: 'currency',
-    currency: 'CLP',
-    maximumFractionDigits: 0
+    currency: cfg.currency,
+    maximumFractionDigits: cfg.decimals
   }).format(monto);
+}
+
+// FUNCIÓN PARA OBTENER EL NOMBRE REAL DEL USUARIO
+function obtenerNombreUsuario(user) {
+  if (user && user.displayName && user.displayName.trim() !== "") {
+    return user.displayName;
+  }
+  if (user && user.email) {
+    const parte = user.email.split('@')[0];
+    return parte.charAt(0).toUpperCase() + parte.slice(1);
+  }
+  return "Usuario";
+}
+
+// COMPRESIÓN DE IMÁGENES
+function comprimirImagenABase64(archivo) {
+  return new Promise((resolve) => {
+    if (!archivo) return resolve(null);
+    if (archivo.type === 'application/pdf') {
+      const reader = new FileReader();
+      reader.readAsDataURL(archivo);
+      reader.onload = () => resolve(reader.result);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.readAsDataURL(archivo);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const scaleSize = MAX_WIDTH / img.width;
+        
+        canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
+        canvas.height = (img.width > MAX_WIDTH) ? img.height * scaleSize : img.height;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+    };
+  });
 }
 
 // PWA
@@ -145,14 +213,12 @@ btnInstallPwa.addEventListener('click', async () => {
   if (deferredPrompt) {
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      btnInstallPwa.classList.add('hidden');
-    }
+    if (outcome === 'accepted') btnInstallPwa.classList.add('hidden');
     deferredPrompt = null;
   }
 });
 
-// VENTANA FLOTANTE DE CONFIRMACIÓN
+// MODAL CONFIRMACIÓN
 function mostrarConfirmacion({ titulo, mensaje, icono = '⚠️', textoBoton = 'Confirmar' }) {
   return new Promise((resolve) => {
     confirmTitle.textContent = titulo;
@@ -162,16 +228,8 @@ function mostrarConfirmacion({ titulo, mensaje, icono = '⚠️', textoBoton = '
 
     modalConfirm.classList.remove('hidden');
 
-    const handleAccept = () => {
-      cleanup();
-      resolve(true);
-    };
-
-    const handleCancel = () => {
-      cleanup();
-      resolve(false);
-    };
-
+    const handleAccept = () => { cleanup(); resolve(true); };
+    const handleCancel = () => { cleanup(); resolve(false); };
     const cleanup = () => {
       modalConfirm.classList.add('hidden');
       btnConfirmAccept.removeEventListener('click', handleAccept);
@@ -215,16 +273,12 @@ btnToggle.addEventListener('click', () => {
 
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = emailInput.value.trim();
-  const password = passwordInput.value.trim();
-
   mostrarMensaje('Procesando...', 'info');
-
   try {
     if (isLogin) {
-      await signInWithEmailAndPassword(auth, email, password);
+      await signInWithEmailAndPassword(auth, emailInput.value.trim(), passwordInput.value.trim());
     } else {
-      await createUserWithEmailAndPassword(auth, email, password);
+      await createUserWithEmailAndPassword(auth, emailInput.value.trim(), passwordInput.value.trim());
     }
   } catch (error) {
     mostrarMensaje(traducirError(error.code), 'error');
@@ -234,17 +288,9 @@ authForm.addEventListener('submit', async (e) => {
 btnGoogle.addEventListener('click', async () => {
   mostrarMensaje('Conectando con Google...', 'info');
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    console.log('Usuario autenticado con Google:', result.user);
+    await signInWithPopup(auth, googleProvider);
   } catch (error) {
-    console.error('Error al iniciar sesión con Google:', error);
-    if (error.code === 'auth/unauthorized-domain') {
-      mostrarMensaje('Error: Dominio no autorizado. Agrega appcuentasclaras.vercel.app en Firebase Auth.', 'error');
-    } else if (error.code === 'auth/popup-closed-by-user') {
-      mostrarMensaje('La ventana de inicio de sesión fue cerrada.', 'info');
-    } else {
-      mostrarMensaje(`Error con Google: ${error.message}`, 'error');
-    }
+    mostrarMensaje(`Error con Google: ${error.message}`, 'error');
   }
 });
 
@@ -253,9 +299,8 @@ btnLogout.addEventListener('click', () => signOut(auth));
 onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
-    
-    const nombreUsuario = user.displayName || user.email.split('@')[0];
-    welcomeUserTitle.textContent = `¡Bienvenido/a de nuevo, ${nombreUsuario}!`;
+    const nombreReal = obtenerNombreUsuario(user);
+    welcomeUserTitle.textContent = `¡Bienvenido/a de nuevo, ${nombreReal}!`;
 
     authContainer.classList.add('hidden');
     appContainer.classList.remove('hidden');
@@ -271,7 +316,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// NOTIFICACIONES EN TIEMPO REAL CON BOTÓN PARA ADJUNTAR PAGO
+// NOTIFICACIONES
 function escucharNotificaciones(userEmail) {
   const q = query(
     collection(db, 'notificaciones'), 
@@ -298,102 +343,93 @@ function escucharNotificaciones(userEmail) {
       div.style.borderLeft = '4px solid #10b981';
       div.innerHTML = `
         <div>
-          <strong>📩 Nuevo gasto asignado</strong>
+          <strong>📩 ${noti.comprobanteBase64 ? 'Comprobante de Pago Recibido' : 'Nuevo gasto asignado'}</strong>
           <p style="font-size: 0.85rem; color: #9ca3af;">${noti.mensaje}</p>
+          ${noti.comprobanteBase64 ? `<a href="${noti.comprobanteBase64}" download="comprobante.jpg" target="_blank" class="gasto-link">📄 Ver / Descargar Comprobante Adjunto</a><br>` : ''}
           <button class="btn-noti-check" 
                   data-id="${documento.id}"
                   data-de="${noti.deEmail}"
                   data-monto="${noti.montoCuota || 0}"
-                  data-titulo="${noti.mensaje}">
-            ✓ Marcar como enterado / Enviar Pago
+                  data-titulo="${noti.mensaje}"
+                  data-es-pago="${noti.comprobanteBase64 ? 'true' : 'false'}">
+            ${noti.comprobanteBase64 ? '✓ Marcar como visto' : '✓ Marcar enterado / Enviar Pago'}
           </button>
         </div>
-        <div style="color: #ef4444; font-weight: bold;">
-          Debes: ${formatearCLP(noti.montoCuota || 0)}
-        </div>
+        ${noti.montoCuota > 0 ? `<div style="color: #ef4444; font-weight: bold;">Debes: ${formatearMoneda(noti.montoCuota)}</div>` : ''}
       `;
       notiContainer.appendChild(div);
     });
 
-    // Abrir modal de comprobante de pago al hacer clic
     document.querySelectorAll('.btn-noti-check').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', async (e) => {
         const notiId = e.target.dataset.id;
-        const deEmail = e.target.dataset.de;
-        const monto = e.target.dataset.monto;
-        const titulo = e.target.dataset.titulo;
+        if (e.target.dataset.esPago === 'true') {
+          await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+        } else {
+          inputPagoNotiId.value = notiId;
+          inputPagoParaEmail.value = e.target.dataset.de;
+          inputPagoMontoCuota.value = e.target.dataset.monto;
+          inputPagoTituloGasto.value = e.target.dataset.titulo;
 
-        inputPagoNotiId.value = notiId;
-        inputPagoParaEmail.value = deEmail;
-        inputPagoMontoCuota.value = monto;
-        inputPagoTituloGasto.value = titulo;
-
-        linkComprobantePago.value = '';
-        modalPago.classList.remove('hidden');
+          fileComprobantePago.value = '';
+          modalPago.classList.remove('hidden');
+        }
       });
     });
   });
 }
 
-// OMITIR PAGO (Solo marcar leída)
 btnOmitirPago.addEventListener('click', async () => {
-  const notiId = inputPagoNotiId.value;
-  if (notiId) {
-    await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+  if (inputPagoNotiId.value) {
+    await updateDoc(doc(db, 'notificaciones', inputPagoNotiId.value), { leida: true });
   }
   modalPago.classList.add('hidden');
 });
 
-// FORMULARIO DE ENVÍO DE COMPROBANTE DE PAGO
+// FORMULARIO DE ENVÍO DE PAGO
 formPago.addEventListener('submit', async (e) => {
   e.preventDefault();
 
-  const notiId = inputPagoNotiId.value;
-  const paraEmail = inputPagoParaEmail.value;
-  const monto = parseFloat(inputPagoMontoCuota.value);
-  const titulo = inputPagoTituloGasto.value;
-  const linkComprobante = linkComprobantePago.value.trim();
+  const archivoPago = fileComprobantePago.files[0];
+  const comprobanteBase64 = await comprimirImagenABase64(archivoPago);
+  const miNombre = obtenerNombreUsuario(currentUser);
 
   try {
-    // 1. Marcar notificación previa como leída
-    if (notiId) {
-      await updateDoc(doc(db, 'notificaciones', notiId), { leida: true });
+    if (inputPagoNotiId.value) {
+      await updateDoc(doc(db, 'notificaciones', inputPagoNotiId.value), { leida: true });
     }
 
-    // 2. Crear notificación INTERNA para la persona que cobró
     await addDoc(collection(db, 'notificaciones'), {
-      paraEmail: paraEmail,
+      paraEmail: inputPagoParaEmail.value,
       deEmail: currentUser.email,
-      mensaje: `💸 ${currentUser.email.split('@')[0]} te ha transferido su cuota para "${titulo}". Comprobante: ${linkComprobante}`,
+      mensaje: `💸 ${miNombre} te ha transferido su cuota para "${inputPagoTituloGasto.value}".`,
+      comprobanteBase64: comprobanteBase64,
       montoCuota: 0,
       leida: false,
       fecha: new Date().toISOString()
     });
 
-    // 3. Enviar CORREO REAL mediante EmailJS a la persona que cobró
     if (typeof emailjs !== "undefined") {
       try {
         await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-          to_email: paraEmail,
-          from_name: currentUser.email.split('@')[0],
+          to_email: inputPagoParaEmail.value,
+          from_name: miNombre,
           from_email: currentUser.email,
-          titulo: `Pago de: ${titulo}`,
+          titulo: `Pago de: ${inputPagoTituloGasto.value}`,
           categoria: "Transferencia Recibida",
-          monto_cuota: `${formatearCLP(monto)} (Comprobante: ${linkComprobante})`
+          monto_cuota: `${formatearMoneda(parseFloat(inputPagoMontoCuota.value))} (Ver comprobante en app)`
         });
-      } catch (errEmail) {
-        console.error("Error al enviar correo de confirmación de pago:", errEmail);
-      }
+      } catch (err) {}
     }
 
     modalPago.classList.add('hidden');
-    alert('¡Comprobante de transferencia enviado con éxito!');
+    alert('¡Comprobante de pago enviado!');
   } catch (error) {
     console.error('Error al procesar pago:', error);
   }
 });
 
-// GESTIÓN Y ADMINISTRACIÓN DE GRUPOS
+// GESTIÓN DE GRUPOS
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -406,11 +442,7 @@ async function cargarGruposUsuario() {
   selectGrupos.innerHTML = '';
 
   if (snapshot.empty) {
-    const opt = document.createElement('option');
-    opt.value = "";
-    opt.textContent = "-- No tienes grupos aún --";
-    selectGrupos.appendChild(opt);
-    
+    selectGrupos.innerHTML = '<option value="">-- No tienes grupos aún --</option>';
     conHogarBox.classList.add('hidden');
     balanceSection.classList.add('hidden');
     gastoSection.classList.add('hidden');
@@ -433,9 +465,7 @@ async function cargarGruposUsuario() {
 }
 
 selectGrupos.addEventListener('change', (e) => {
-  if (e.target.value) {
-    seleccionarGrupoActivo(e.target.value);
-  }
+  if (e.target.value) seleccionarGrupoActivo(e.target.value);
 });
 
 function seleccionarGrupoActivo(grupoId) {
@@ -460,34 +490,26 @@ function seleccionarGrupoActivo(grupoId) {
 
 btnRenombrarGrupo.addEventListener('click', async () => {
   if (!currentHogar) return;
-
-  const nuevoNombre = prompt(`Ingresa el nuevo nombre para "${currentHogar.nombre}":`, currentHogar.nombre);
+  const nuevoNombre = prompt(`Ingresa nuevo nombre para "${currentHogar.nombre}":`, currentHogar.nombre);
   if (nuevoNombre && nuevoNombre.trim() !== '' && nuevoNombre !== currentHogar.nombre) {
-    await updateDoc(doc(db, 'hogares', currentHogar.id), {
-      nombre: nuevoNombre.trim()
-    });
+    await updateDoc(doc(db, 'hogares', currentHogar.id), { nombre: nuevoNombre.trim() });
     await cargarGruposUsuario();
-    seleccionarGrupoActivo(currentHogar.id);
   }
 });
 
 btnEliminarGrupo.addEventListener('click', async () => {
   if (!currentHogar) return;
-
   const confirmado = await mostrarConfirmacion({
-    titulo: `¿Eliminar el grupo "${currentHogar.nombre}"?`,
-    mensaje: 'Se borrarán el grupo y todos los gastos registrados en él. Esta acción es irreversible.',
+    titulo: `¿Eliminar "${currentHogar.nombre}"?`,
+    mensaje: 'Se eliminará el grupo y todos sus gastos.',
     icono: '🗑️',
     textoBoton: 'Eliminar Grupo'
   });
 
   if (confirmado) {
     const qGastos = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
-    const snapshotGastos = await getDocs(qGastos);
-    snapshotGastos.forEach(async (documento) => {
-      await deleteDoc(doc(db, 'gastos', documento.id));
-    });
-
+    const snapshot = await getDocs(qGastos);
+    snapshot.forEach(async (d) => await deleteDoc(doc(db, 'gastos', d.id)));
     await deleteDoc(doc(db, 'hogares', currentHogar.id));
     await cargarGruposUsuario();
   }
@@ -496,72 +518,48 @@ btnEliminarGrupo.addEventListener('click', async () => {
 btnCrearHogar.addEventListener('click', async () => {
   const nombre = nombreHogarInput.value.trim();
   if (!nombre) return;
-
-  const codigo = generarCodigo();
-
-  try {
-    const docRef = await addDoc(collection(db, 'hogares'), {
-      nombre: nombre,
-      codigo: codigo,
-      integrantes: [currentUser.uid]
-    });
-
-    nombreHogarInput.value = '';
-    await cargarGruposUsuario();
-    seleccionarGrupoActivo(docRef.id);
-  } catch (error) {
-    console.error('Error al crear grupo:', error);
-  }
+  const docRef = await addDoc(collection(db, 'hogares'), {
+    nombre: nombre,
+    codigo: generarCodigo(),
+    integrantes: [currentUser.uid]
+  });
+  nombreHogarInput.value = '';
+  await cargarGruposUsuario();
+  seleccionarGrupoActivo(docRef.id);
 });
 
 btnUnirseHogar.addEventListener('click', async () => {
   const codigo = codigoUnirseInput.value.trim().toUpperCase();
   if (!codigo) return;
-
-  try {
-    const q = query(collection(db, 'hogares'), where('codigo', '==', codigo));
-    const snapshot = await getDocs(q);
-
-    if (snapshot.empty) {
-      return;
-    }
-
+  const q = query(collection(db, 'hogares'), where('codigo', '==', codigo));
+  const snapshot = await getDocs(q);
+  if (!snapshot.empty) {
     const hogarDoc = snapshot.docs[0];
     const data = hogarDoc.data();
-
     if (!data.integrantes.includes(currentUser.uid)) {
       data.integrantes.push(currentUser.uid);
       await updateDoc(doc(db, 'hogares', hogarDoc.id), { integrantes: data.integrantes });
     }
-
     codigoUnirseInput.value = '';
     await cargarGruposUsuario();
     seleccionarGrupoActivo(hogarDoc.id);
-  } catch (error) {
-    console.error('Error al unirse al grupo:', error);
   }
 });
 
 btnCompartir.addEventListener('click', async () => {
   if (!currentHogar) return;
-
-  const textoCompartir = `¡Únete a mi grupo "${currentHogar.nombre}" en CuentasClaras para compartir gastos! Ingresa a ${VERCEL_APP_URL} y usa el código: ${currentHogar.codigo}`;
-
+  const texto = `¡Únete a mi grupo "${currentHogar.nombre}" en CuentasClaras! Código: ${currentHogar.codigo}`;
   if (navigator.share) {
-    try {
-      await navigator.share({ title: 'CuentasClaras', text: textoCompartir, url: VERCEL_APP_URL });
-    } catch (err) {
-      console.log('Compartir cancelado:', err);
-    }
+    try { await navigator.share({ title: 'CuentasClaras', text: texto, url: VERCEL_APP_URL }); } catch (e) {}
   } else {
-    navigator.clipboard.writeText(textoCompartir);
+    navigator.clipboard.writeText(texto);
+    alert('Código copiado al portapapeles');
   }
 });
 
-// REGISTRO Y REPARTO DE GASTOS
+// REGISTRO DE GASTOS CON NOMBRE REAL DEL USUARIO
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
-
   if (!currentHogar) return;
 
   const titulo = document.getElementById('titulo').value.trim();
@@ -569,9 +567,10 @@ gastoForm.addEventListener('submit', async (e) => {
   const monto = parseFloat(document.getElementById('monto').value);
   const tipoGasto = document.getElementById('tipo-gasto').value;
   const correosRaw = document.getElementById('correo-deudor').value.trim();
-  const enlace = document.getElementById('enlace').value.trim();
-
+  
+  const comprobanteBase64 = await comprimirImagenABase64(fileComprobanteGasto.files[0]);
   const esCompartido = tipoGasto === 'compartido';
+  const miNombre = obtenerNombreUsuario(currentUser);
 
   let correosLista = [];
   if (esCompartido && correosRaw) {
@@ -581,9 +580,9 @@ gastoForm.addEventListener('submit', async (e) => {
       .filter(c => c.length > 0 && c !== currentUser.email);
   }
 
-  const numIntegrantesGroup = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
-  const totalPersonasDividiendo = correosLista.length > 0 ? (1 + correosLista.length) : numIntegrantesGroup;
-  const cuotaPorPersona = monto / totalPersonasDividiendo;
+  const numIntegrantes = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
+  const totalPersonas = correosLista.length > 0 ? (1 + correosLista.length) : numIntegrantes;
+  const cuotaPorPersona = monto / totalPersonas;
 
   try {
     await addDoc(collection(db, 'gastos'), {
@@ -593,20 +592,19 @@ gastoForm.addEventListener('submit', async (e) => {
       monto: monto,
       esCompartido: esCompartido,
       compartidoConEmails: correosLista,
-      enlaceComprobante: enlace,
+      comprobanteBase64: comprobanteBase64,
       pagadoPor: currentUser.uid,
       pagadoPorEmail: currentUser.email,
-      pagadoPorNombre: currentUser.email.split('@')[0],
+      pagadoPorNombre: miNombre,
       fecha: new Date().toISOString()
     });
 
     if (esCompartido && correosLista.length > 0) {
       for (const correoDestino of correosLista) {
-        
         await addDoc(collection(db, 'notificaciones'), {
           paraEmail: correoDestino,
           deEmail: currentUser.email,
-          mensaje: `${currentUser.email.split('@')[0]} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras (${VERCEL_APP_URL}).`,
+          mensaje: `${miNombre} te ha añadido al gasto "${titulo}" (${categoria}).`,
           montoCuota: cuotaPorPersona,
           leida: false,
           fecha: new Date().toISOString()
@@ -616,15 +614,13 @@ gastoForm.addEventListener('submit', async (e) => {
           try {
             await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
               to_email: correoDestino,
-              from_name: currentUser.email.split('@')[0],
+              from_name: miNombre,
               from_email: currentUser.email,
               titulo: titulo,
               categoria: categoria,
-              monto_cuota: formatearCLP(cuotaPorPersona)
+              monto_cuota: formatearMoneda(cuotaPorPersona)
             });
-          } catch (errEmail) {
-            console.error("Error al enviar correo con EmailJS:", errEmail);
-          }
+          } catch (err) {}
         }
       }
     }
@@ -635,84 +631,157 @@ gastoForm.addEventListener('submit', async (e) => {
   }
 });
 
+// HISTORIAL Y DESGLOSE CON NOMBRES REALES
 function escucharGastosEnTiempoReal() {
   if (unsubscribeGastos) unsubscribeGastos();
 
   const q = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
 
   unsubscribeGastos = onSnapshot(q, (snapshot) => {
+    todosLosGastosGrupo = [];
     let totalCompartido = 0;
-    let pagadoPorMiCompartido = 0;
+    let pagadoPorMi = 0;
 
-    listaGastos.innerHTML = '';
+    let desgloses = {};
 
-    snapshot.forEach((documento) => {
-      const gasto = documento.data();
+    snapshot.forEach((docSnap) => {
+      const gasto = { id: docSnap.id, ...docSnap.data() };
+      todosLosGastosGrupo.push(gasto);
 
       if (gasto.esCompartido) {
         totalCompartido += gasto.monto;
+        
+        const pagador = gasto.pagadoPorNombre || "Usuario";
+        desgloses[pagador] = (desgloses[pagador] || 0) + gasto.monto;
+
         if (gasto.pagadoPor === currentUser.uid) {
-          pagadoPorMiCompartido += gasto.monto;
+          pagadoPorMi += gasto.monto;
         }
       }
-
-      const tagClase = gasto.esCompartido ? 'tag-compartido' : 'tag-personal';
-      const tagTexto = gasto.esCompartido ? 'Compartido' : 'Personal';
-
-      const li = document.createElement('li');
-      li.className = 'gasto-item';
-      li.innerHTML = `
-        <div>
-          <strong>${gasto.categoria} - ${gasto.titulo}</strong>
-          <span class="gasto-tag ${tagClase}">${tagTexto}</span>
-          <br><small>Pagado por: ${gasto.pagadoPorNombre}</small>
-          ${gasto.enlaceComprobante ? `<br><a href="${gasto.enlaceComprobante}" target="_blank" class="gasto-link">📄 Ver Comprobante</a>` : ''}
-        </div>
-        <div class="gasto-actions">
-          <strong>${formatearCLP(gasto.monto)}</strong>
-          ${gasto.pagadoPor === currentUser.uid ? `<button class="btn-delete" data-id="${documento.id}" title="Eliminar gasto">🗑️</button>` : ''}
-        </div>
-      `;
-      listaGastos.appendChild(li);
     });
 
-    document.querySelectorAll('.btn-delete').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const confirmado = await mostrarConfirmacion({
-          titulo: '¿Eliminar este gasto?',
-          mensaje: 'El registro se borrará del historial y afectará el cálculo del balance.',
-          icono: '🗑️',
-          textoBoton: 'Eliminar'
-        });
+    renderizarHistorialGastos();
 
-        if (confirmado) {
-          const gastoId = e.target.dataset.id;
-          await deleteDoc(doc(db, 'gastos', gastoId));
-        }
-      });
-    });
-
-    const numIntegrantesGroup = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
-    const cuotaPorPersona = totalCompartido / numIntegrantesGroup;
-    const miDiferencia = pagadoPorMiCompartido - cuotaPorPersona;
+    const numIntegrantes = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
+    const cuotaIndividual = totalCompartido / numIntegrantes;
+    const miDiferencia = pagadoPorMi - cuotaIndividual;
 
     if (miDiferencia > 0) {
-      balanceDisplay.innerHTML = `<span style="color: #10b981;">A tu favor en "${currentHogar.nombre}": ${formatearCLP(miDiferencia)}</span>`;
+      balanceDisplay.innerHTML = `<span style="color: #10b981;">A tu favor en "${currentHogar.nombre}": ${formatearMoneda(miDiferencia)}</span>`;
       btnSaldar.classList.remove('hidden');
     } else if (miDiferencia < 0) {
-      balanceDisplay.innerHTML = `<span style="color: #ef4444;">Debes en "${currentHogar.nombre}": ${formatearCLP(Math.abs(miDiferencia))}</span>`;
+      balanceDisplay.innerHTML = `<span style="color: #ef4444;">Debes en "${currentHogar.nombre}": ${formatearMoneda(Math.abs(miDiferencia))}</span>`;
       btnSaldar.classList.remove('hidden');
     } else {
       balanceDisplay.innerHTML = `<span>¡Cuentas al día en "${currentHogar.nombre}"! No hay deudas pendientes.</span>`;
       btnSaldar.classList.add('hidden');
     }
+
+    listaDesglose.innerHTML = '';
+    const personas = Object.keys(desgloses);
+
+    if (personas.length > 0) {
+      desgloseBox.classList.remove('hidden');
+      personas.forEach((persona) => {
+        const pagado = desgloses[persona];
+        const dif = pagado - cuotaIndividual;
+
+        const div = document.createElement('div');
+        div.className = 'desglose-item';
+        
+        let estadoHtml = '';
+        if (dif > 0) {
+          estadoHtml = `<strong style="color:#10b981;">+${formatearMoneda(dif)} (A favor)</strong>`;
+        } else if (dif < 0) {
+          estadoHtml = `<strong style="color:#ef4444;">-${formatearMoneda(Math.abs(dif))} (Debe)</strong>`;
+        } else {
+          estadoHtml = `<span style="color:#9ca3af;">Al día</span>`;
+        }
+
+        div.innerHTML = `<div><strong>${persona}</strong><br><small style="color:#9ca3af;">Aportó: ${formatearMoneda(pagado)}</small></div><div>${estadoHtml}</div>`;
+        listaDesglose.appendChild(div);
+      });
+    } else {
+      desgloseBox.classList.add('hidden');
+    }
   });
 }
 
+// FILTROS
+filterSearch.addEventListener('input', renderizarHistorialGastos);
+filterCategoria.addEventListener('change', renderizarHistorialGastos);
+
+function renderizarHistorialGastos() {
+  const queryTexto = filterSearch.value.trim().toLowerCase();
+  const catSelected = filterCategoria.value;
+
+  listaGastos.innerHTML = '';
+
+  const gastosFiltrados = todosLosGastosGrupo.filter((gasto) => {
+    const coincideTexto = gasto.titulo.toLowerCase().includes(queryTexto) || gasto.categoria.toLowerCase().includes(queryTexto);
+    const coincideCategoria = catSelected === 'todas' || gasto.categoria === catSelected;
+    return coincideTexto && coincideCategoria;
+  });
+
+  gastosFiltrados.forEach((gasto) => {
+    const tagClase = gasto.esCompartido ? 'tag-compartido' : 'tag-personal';
+    const tagTexto = gasto.esCompartido ? 'Compartido' : 'Personal';
+
+    const li = document.createElement('li');
+    li.className = 'gasto-item';
+    li.innerHTML = `
+      <div>
+        <strong>${gasto.categoria} - ${gasto.titulo}</strong>
+        <span class="gasto-tag ${tagClase}">${tagTexto}</span>
+        <br><small>Pagado por: ${gasto.pagadoPorNombre}</small>
+        ${gasto.comprobanteBase64 ? `<br><a href="${gasto.comprobanteBase64}" download="comprobante_${gasto.titulo}.jpg" target="_blank" class="gasto-link">📄 Ver / Descargar Comprobante Adjunto</a>` : ''}
+      </div>
+      <div class="gasto-actions">
+        <strong>${formatearMoneda(gasto.monto)}</strong>
+        ${gasto.pagadoPor === currentUser.uid ? `<button class="btn-delete" data-id="${gasto.id}" title="Eliminar gasto">🗑️</button>` : ''}
+      </div>
+    `;
+    listaGastos.appendChild(li);
+  });
+
+  document.querySelectorAll('.btn-delete').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const confirmado = await mostrarConfirmacion({
+        titulo: '¿Eliminar este gasto?',
+        mensaje: 'Se borrará del historial.',
+        icono: '🗑️',
+        textoBoton: 'Eliminar'
+      });
+      if (confirmado) await deleteDoc(doc(db, 'gastos', e.target.dataset.id));
+    });
+  });
+}
+
+// EXPORTAR A CSV
+btnExportarCsv.addEventListener('click', () => {
+  if (todosLosGastosGrupo.length === 0) return alert('No hay gastos registrados para exportar.');
+
+  let csvContent = "data:text/csv;charset=utf-8,Titulo,Categoria,Monto,Tipo,PagadoPor,Fecha\n";
+
+  todosLosGastosGrupo.forEach(g => {
+    const tipo = g.esCompartido ? "Compartido" : "Personal";
+    csvContent += `"${g.titulo}","${g.categoria}",${g.monto},"${tipo}","${g.pagadoPorNombre}","${g.fecha}"\n`;
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `CuentasClaras_${currentHogar.nombre}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+});
+
+// SALDAR CUENTAS
 btnSaldar.addEventListener('click', async () => {
   const confirmado = await mostrarConfirmacion({
     titulo: '¿Saldar cuentas del grupo?',
-    mensaje: `Confirmas que ya se realizó el pago. Las cuentas de "${currentHogar.nombre}" volverán a cero.`,
+    mensaje: `Confirmas que ya se realizaron los pagos. El balance de "${currentHogar.nombre}" volverá a cero.`,
     icono: '✅',
     textoBoton: 'Saldar Cuentas'
   });
@@ -720,10 +789,8 @@ btnSaldar.addEventListener('click', async () => {
   if (confirmado) {
     const q = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
     const snapshot = await getDocs(q);
-
     snapshot.forEach(async (documento) => {
-      const gasto = documento.data();
-      if (gasto.esCompartido) {
+      if (documento.data().esCompartido) {
         await updateDoc(doc(db, 'gastos', documento.id), { esCompartido: false });
       }
     });
