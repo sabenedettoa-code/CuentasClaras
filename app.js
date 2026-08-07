@@ -6,8 +6,7 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup,
-  updateProfile
+  signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { 
   getFirestore, 
@@ -15,7 +14,6 @@ import {
   addDoc, 
   getDocs, 
   doc, 
-  setDoc,
   updateDoc,
   deleteDoc,
   query, 
@@ -64,16 +62,13 @@ const authTitle = document.getElementById('auth-title');
 const toggleText = document.getElementById('toggle-text');
 const authMessage = document.getElementById('auth-message');
 
-const registroCamposExtra = document.getElementById('registro-campos-extra');
-const nombreApellidoInput = document.getElementById('nombre-apellido');
-const rutUsuarioInput = document.getElementById('rut-usuario');
-
 const modalTutorial = document.getElementById('modal-tutorial');
 const btnTutorial = document.getElementById('btn-tutorial');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const btnEntendido = document.getElementById('btn-entendido');
 
 const selectGrupos = document.getElementById('select-grupos');
+const sinHogarBox = document.getElementById('sin-hogar-box');
 const conHogarBox = document.getElementById('con-hogar-box');
 const btnCrearHogar = document.getElementById('btn-crear-hogar');
 const btnUnirseHogar = document.getElementById('btn-unirse-hogar');
@@ -97,29 +92,7 @@ let currentHogar = null;
 let listaMisGrupos = [];
 let isLogin = true;
 let unsubscribeGastos = null;
-
-// VALIDACIÓN DEL RUT CHILENO (Mód. 11)
-function validarRut(rutCompleto) {
-  rutCompleto = rutCompleto.replace(/[^0-9kK]/g, '');
-  if (rutCompleto.length < 8) return false;
-  
-  const cuerpo = rutCompleto.slice(0, -1);
-  let dv = rutCompleto.slice(-1).toUpperCase();
-  
-  let suma = 0;
-  let multiplo = 2;
-  
-  for (let i = 1; i <= cuerpo.length; i++) {
-    const index = multiplo * rutCompleto.charAt(cuerpo.length - i);
-    suma += index;
-    if (multiplo < 7) { multiplo += 1; } else { multiplo = 2; }
-  }
-  
-  const dvEsperado = 11 - (suma % 11);
-  let dvCalc = dvEsperado === 11 ? '0' : dvEsperado === 10 ? 'K' : dvEsperado.toString();
-  
-  return dvCalc === dv;
-}
+let unsubscribeHogar = null;
 
 function formatearCLP(monto) {
   return new Intl.NumberFormat('es-CL', {
@@ -150,12 +123,6 @@ btnToggle.addEventListener('click', () => {
   btnSubmit.textContent = isLogin ? 'Entrar' : 'Registrarse';
   toggleText.textContent = isLogin ? '¿No tienes cuenta?' : '¿Ya tienes cuenta?';
   btnToggle.textContent = isLogin ? 'Registrarse' : 'Iniciar Sesión';
-  
-  if (isLogin) {
-    registroCamposExtra.classList.add('hidden');
-  } else {
-    registroCamposExtra.classList.remove('hidden');
-  }
   authMessage.textContent = '';
 });
 
@@ -170,30 +137,7 @@ authForm.addEventListener('submit', async (e) => {
     if (isLogin) {
       await signInWithEmailAndPassword(auth, email, password);
     } else {
-      const nombreApellido = nombreApellidoInput.value.trim();
-      const rut = rutUsuarioInput.value.trim();
-
-      if (!nombreApellido) {
-        return mostrarMensaje('Por favor ingresa tu Nombre y Apellido.', 'error');
-      }
-
-      if (!validarRut(rut)) {
-        return mostrarMensaje('El RUT ingresado no es válido.', 'error');
-      }
-
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // Actualizar perfil con el Nombre y Apellido
-      await updateProfile(user, { displayName: nombreApellido });
-
-      // Guardar información extendida en Firestore
-      await setDoc(doc(db, 'usuarios', user.uid), {
-        nombreApellido: nombreApellido,
-        rut: rut,
-        email: email,
-        fechaRegistro: new Date().toISOString()
-      });
+      await createUserWithEmailAndPassword(auth, email, password);
     }
   } catch (error) {
     mostrarMensaje(traducirError(error.code), 'error');
@@ -208,7 +152,7 @@ btnGoogle.addEventListener('click', async () => {
   } catch (error) {
     console.error('Error al iniciar sesión con Google:', error);
     if (error.code === 'auth/unauthorized-domain') {
-      mostrarMensaje('Error: Dominio no autorizado en Firebase Auth.', 'error');
+      mostrarMensaje('Error: Dominio no autorizado. Agrega appcuentasclaras.vercel.app en Firebase Auth.', 'error');
     } else if (error.code === 'auth/popup-closed-by-user') {
       mostrarMensaje('La ventana de inicio de sesión fue cerrada.', 'info');
     } else {
@@ -228,6 +172,7 @@ onAuthStateChanged(auth, async (user) => {
     await cargarGruposUsuario();
   } else {
     if (unsubscribeGastos) unsubscribeGastos();
+    if (unsubscribeHogar) unsubscribeHogar();
     currentUser = null;
     currentHogar = null;
     authContainer.classList.remove('hidden');
@@ -283,7 +228,7 @@ function escucharNotificaciones(userEmail) {
   });
 }
 
-// --- GESTIÓN DE MÚLTIPLES GRUPOS ---
+// --- GESTIÓN DE MÚLTIPLES GRUPOS CON REAL-TIME INTEGRANTES ---
 
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -338,10 +283,16 @@ function seleccionarGrupoActivo(grupoId) {
   gastoSection.classList.remove('hidden');
   historialSection.classList.remove('hidden');
 
-  document.getElementById('codigo-hogar-display').textContent = currentHogar.codigo;
-  document.getElementById('integrantes-count').textContent = currentHogar.integrantes ? currentHogar.integrantes.length : 1;
-
-  escucharGastosEnTiempoReal();
+  // Escuchar cambios en el documento del Hogar (si entra un nuevo integrante)
+  if (unsubscribeHogar) unsubscribeHogar();
+  unsubscribeHogar = onSnapshot(doc(db, 'hogares', currentHogar.id), (docSnap) => {
+    if (docSnap.exists()) {
+      currentHogar = { id: docSnap.id, ...docSnap.data() };
+      document.getElementById('codigo-hogar-display').textContent = currentHogar.codigo;
+      document.getElementById('integrantes-count').textContent = currentHogar.integrantes ? currentHogar.integrantes.length : 1;
+      escucharGastosEnTiempoReal();
+    }
+  });
 }
 
 btnCrearHogar.addEventListener('click', async () => {
@@ -410,7 +361,7 @@ btnCompartir.addEventListener('click', async () => {
   }
 });
 
-// --- REGISTRO DE GASTOS Y ENVÍO DE CORREOS ---
+// --- REGISTRO Y REPARTO DE GASTOS ---
 
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -434,11 +385,10 @@ gastoForm.addEventListener('submit', async (e) => {
       .filter(c => c.length > 0 && c !== currentUser.email);
   }
 
-  const totalPersonasDividiendo = 1 + correosLista.length;
+  // Si no hay correos escritos, dividir entre los integrantes reales del grupo (mínimo 2)
+  const numIntegrantesGroup = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
+  const totalPersonasDividiendo = correosLista.length > 0 ? (1 + correosLista.length) : numIntegrantesGroup;
   const cuotaPorPersona = monto / totalPersonasDividiendo;
-
-  // Usa el Nombre Real registrado en el perfil
-  const nombreReal = currentUser.displayName || currentUser.email.split('@')[0];
 
   try {
     await addDoc(collection(db, 'gastos'), {
@@ -451,7 +401,7 @@ gastoForm.addEventListener('submit', async (e) => {
       enlaceComprobante: enlace,
       pagadoPor: currentUser.uid,
       pagadoPorEmail: currentUser.email,
-      pagadoPorNombre: nombreReal,
+      pagadoPorNombre: currentUser.email.split('@')[0],
       fecha: new Date().toISOString()
     });
 
@@ -461,7 +411,7 @@ gastoForm.addEventListener('submit', async (e) => {
         await addDoc(collection(db, 'notificaciones'), {
           paraEmail: correoDestino,
           deEmail: currentUser.email,
-          mensaje: `${nombreReal} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras (${VERCEL_APP_URL}).`,
+          mensaje: `${currentUser.email.split('@')[0]} te ha añadido al gasto "${titulo}" (${categoria}) en CuentasClaras (${VERCEL_APP_URL}).`,
           montoCuota: cuotaPorPersona,
           leida: false,
           fecha: new Date().toISOString()
@@ -471,7 +421,7 @@ gastoForm.addEventListener('submit', async (e) => {
           try {
             await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
               to_email: correoDestino,
-              from_name: nombreReal,
+              from_name: currentUser.email.split('@')[0],
               from_email: currentUser.email,
               titulo: titulo,
               categoria: categoria,
@@ -540,7 +490,8 @@ function escucharGastosEnTiempoReal() {
       });
     });
 
-    const numIntegrantesGroup = (currentHogar.integrantes && currentHogar.integrantes.length > 0) ? currentHogar.integrantes.length : 2;
+    // Mínimo 2 integrantes para calcular reparto compartido
+    const numIntegrantesGroup = Math.max(2, (currentHogar.integrantes ? currentHogar.integrantes.length : 2));
     const cuotaPorPersona = totalCompartido / numIntegrantesGroup;
     const miDiferencia = pagadoPorMiCompartido - cuotaPorPersona;
 
