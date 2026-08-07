@@ -194,6 +194,36 @@ input:focus, select:focus {
 }
 .btn-secondary:hover { background: #334155; }
 
+.btn-secondary-sm {
+  padding: 6px 12px;
+  background: #1e293b;
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.btn-secondary-sm:hover { background: #334155; }
+
+.btn-danger-sm {
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+.btn-danger-sm:hover { background: rgba(239, 68, 68, 0.3); }
+
+.grupo-admin-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .btn-pwa {
   padding: 10px 14px;
   background: rgba(16, 185, 129, 0.2);
@@ -280,6 +310,32 @@ input:focus, select:focus {
   font-weight: 700;
   cursor: pointer;
   margin-top: 6px;
+}
+
+.privacy-footer-box {
+  margin-top: 16px;
+  text-align: center;
+}
+
+.btn-link-sm {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.btn-link-sm:hover { color: var(--text-main); text-decoration: underline; }
+
+.privacy-body {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  background: var(--bg-input);
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .modal-backdrop {

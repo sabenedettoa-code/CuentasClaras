@@ -70,6 +70,12 @@ const btnTutorial = document.getElementById('btn-tutorial');
 const btnCloseModal = document.getElementById('btn-close-modal');
 const btnEntendido = document.getElementById('btn-entendido');
 
+const modalPrivacy = document.getElementById('modal-privacy');
+const btnPrivacyAuth = document.getElementById('btn-privacy-auth');
+const btnPrivacyApp = document.getElementById('btn-privacy-app');
+const btnClosePrivacy = document.getElementById('btn-close-privacy');
+const btnEntendidoPrivacy = document.getElementById('btn-entendido-privacy');
+
 const modalConfirm = document.getElementById('modal-confirm');
 const confirmTitle = document.getElementById('confirm-title');
 const confirmMessage = document.getElementById('confirm-message');
@@ -85,6 +91,9 @@ const btnUnirseHogar = document.getElementById('btn-unirse-hogar');
 const btnCompartir = document.getElementById('btn-compartir');
 const nombreHogarInput = document.getElementById('nombre-hogar-input');
 const codigoUnirseInput = document.getElementById('codigo-unirse-input');
+
+const btnRenombrarGrupo = document.getElementById('btn-renombrar-grupo');
+const btnEliminarGrupo = document.getElementById('btn-eliminar-grupo');
 
 const balanceSection = document.getElementById('balance-section');
 const gastoSection = document.getElementById('gasto-section');
@@ -113,7 +122,7 @@ function formatearCLP(monto) {
   }).format(monto);
 }
 
-// --- PWA: LÓGICA PARA BANDERILLA Y BOTÓN AÑADIR A PANTALLA DE INICIO ---
+// PWA: INSTALACIÓN EN PANTALLA DE INICIO
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
@@ -131,7 +140,7 @@ btnInstallPwa.addEventListener('click', async () => {
   }
 });
 
-// --- VENTANA FLOTANTE DE CONFIRMACIÓN ---
+// VENTANA FLOTANTE DE CONFIRMACIÓN
 function mostrarConfirmacion({ titulo, mensaje, icono = '⚠️', textoBoton = 'Confirmar' }) {
   return new Promise((resolve) => {
     confirmTitle.textContent = titulo;
@@ -162,10 +171,15 @@ function mostrarConfirmacion({ titulo, mensaje, icono = '⚠️', textoBoton = '
   });
 }
 
-// TUTORIAL
+// TUTORIAL Y PRIVACIDAD
 btnTutorial.addEventListener('click', () => modalTutorial.classList.remove('hidden'));
 btnCloseModal.addEventListener('click', () => modalTutorial.classList.add('hidden'));
 btnEntendido.addEventListener('click', () => modalTutorial.classList.add('hidden'));
+
+btnPrivacyAuth.addEventListener('click', () => modalPrivacy.classList.remove('hidden'));
+btnPrivacyApp.addEventListener('click', () => modalPrivacy.classList.remove('hidden'));
+btnClosePrivacy.addEventListener('click', () => modalPrivacy.classList.add('hidden'));
+btnEntendidoPrivacy.addEventListener('click', () => modalPrivacy.classList.add('hidden'));
 
 tipoGastoSelect.addEventListener('change', (e) => {
   if (e.target.value === 'personal') {
@@ -175,8 +189,7 @@ tipoGastoSelect.addEventListener('change', (e) => {
   }
 });
 
-// --- AUTENTICACIÓN ---
-
+// AUTENTICACIÓN
 btnToggle.addEventListener('click', () => {
   isLogin = !isLogin;
   authTitle.textContent = isLogin ? 'CuentasClaras' : 'Crear Cuenta';
@@ -227,7 +240,6 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     currentUser = user;
     
-    // Personalizar banner de bienvenida con el nombre o correo
     const nombreUsuario = user.displayName || user.email.split('@')[0];
     welcomeUserTitle.textContent = `¡Bienvenido/a de nuevo, ${nombreUsuario}!`;
 
@@ -245,8 +257,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-// --- NOTIFICACIONES EN TIEMPO REAL ---
-
+// NOTIFICACIONES
 function escucharNotificaciones(userEmail) {
   const q = query(
     collection(db, 'notificaciones'), 
@@ -293,8 +304,7 @@ function escucharNotificaciones(userEmail) {
   });
 }
 
-// --- GESTIÓN DE MÚLTIPLES GRUPOS ---
-
+// GESTIÓN Y ADMINISTRACIÓN DE GRUPOS (RENOMBRAR Y ELIMINAR)
 function generarCodigo() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
@@ -358,6 +368,47 @@ function seleccionarGrupoActivo(grupoId) {
     }
   });
 }
+
+// RENOMBRAR GRUPO
+btnRenombrarGrupo.addEventListener('click', async () => {
+  if (!currentHogar) return;
+
+  const nuevoNombre = prompt(`Ingresa el nuevo nombre para "${currentHogar.nombre}":`, currentHogar.nombre);
+  if (nuevoNombre && nuevoNombre.trim() !== '' && nuevoNombre !== currentHogar.nombre) {
+    await updateDoc(doc(db, 'hogares', currentHogar.id), {
+      nombre: nuevoNombre.trim()
+    });
+    await cargarGruposUsuario();
+    seleccionarGrupoActivo(currentHogar.id);
+  }
+});
+
+// ELIMINAR GRUPO
+btnEliminarGrupo.addEventListener('click', async () => {
+  if (!currentHogar) return;
+
+  const confirmado = await mostrarConfirmacion({
+    titulo: `¿Eliminar el grupo "${currentHogar.nombre}"?`,
+    mensaje: 'Se borrarán el grupo y todos los gastos registrados en él. Esta acción es irreversible.',
+    icono: '🗑️',
+    textoBoton: 'Eliminar Grupo'
+  });
+
+  if (confirmado) {
+    // 1. Borrar todos los gastos vinculados a este hogar
+    const qGastos = query(collection(db, 'gastos'), where('hogarId', '==', currentHogar.id));
+    const snapshotGastos = await getDocs(qGastos);
+    snapshotGastos.forEach(async (documento) => {
+      await deleteDoc(doc(db, 'gastos', documento.id));
+    });
+
+    // 2. Borrar el documento del hogar
+    await deleteDoc(doc(db, 'hogares', currentHogar.id));
+
+    // 3. Recargar grupos
+    await cargarGruposUsuario();
+  }
+});
 
 btnCrearHogar.addEventListener('click', async () => {
   const nombre = nombreHogarInput.value.trim();
@@ -424,8 +475,7 @@ btnCompartir.addEventListener('click', async () => {
   }
 });
 
-// --- REGISTRO Y REPARTO DE GASTOS ---
-
+// REGISTRO Y REPARTO DE GASTOS
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 

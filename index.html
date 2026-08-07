@@ -61,6 +61,10 @@
       <button id="btn-toggle" class="btn-link" type="button">Registrarse</button>
     </div>
 
+    <div class="privacy-footer-box">
+      <button id="btn-privacy-auth" class="btn-link-sm" type="button">🔒 Política de Privacidad</button>
+    </div>
+
     <div id="auth-message" class="message"></div>
   </div>
 
@@ -72,8 +76,8 @@
         <h1>CuentasClaras</h1>
       </div>
       <div class="header-actions">
-        <!-- BOTÓN INSTALAR APP EN PANTALLA DE INICIO -->
         <button id="btn-install-pwa" class="btn-pwa hidden" type="button">📲 Instalar App</button>
+        <button id="btn-privacy-app" class="btn-secondary" type="button">🔒 Privacidad</button>
         <button id="btn-tutorial" class="btn-secondary" type="button">❓ Ayuda</button>
         <button id="btn-logout" class="btn-secondary" type="button">Cerrar Sesión</button>
       </div>
@@ -111,6 +115,12 @@
         <div class="codigo-share-row">
           <span>Código del grupo: <strong id="codigo-hogar-display" class="badge">---</strong> (<span id="integrantes-count">1</span> integrante(s))</span>
           <button id="btn-compartir" class="btn-share" type="button">📲 Compartir Código</button>
+        </div>
+
+        <!-- ACCIONES PARA EDITAR Y ELIMINAR EL GRUPO SELECCIONADO -->
+        <div class="grupo-admin-actions margin-top">
+          <button id="btn-renombrar-grupo" class="btn-secondary-sm" type="button">✏️ Renombrar Grupo</button>
+          <button id="btn-eliminar-grupo" class="btn-danger-sm" type="button">🗑️ Eliminar Grupo</button>
         </div>
       </div>
 
@@ -231,6 +241,31 @@
       </div>
 
       <button id="btn-entendido" class="btn-primary margin-top">¡Entendido, ir a mis cuentas!</button>
+    </div>
+  </div>
+
+  <!-- MODAL POLÍTICA DE PRIVACIDAD -->
+  <div id="modal-privacy" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="welcome-header margin-bottom-zero">
+          <div class="welcome-logo">🔒</div>
+          <div>
+            <h2>Política de Privacidad</h2>
+            <p class="subtitle" style="margin-bottom: 0;">CuentasClaras - Protección y Transparencia de Datos</p>
+          </div>
+        </div>
+        <button id="btn-close-privacy" class="btn-close">&times;</button>
+      </div>
+
+      <div class="privacy-body margin-top">
+        <p><strong>1. Uso de Información:</strong> CuentasClaras utiliza tu correo electrónico e identificación única para autenticar tu cuenta mediante Google / Firebase Authentication y asociarte a tus grupos de gastos.</p>
+        <p class="margin-top"><strong>2. Almacenamiento Seguro:</strong> Los registros de gastos, comprobantes y balances se guardan en Google Firestore de forma encriptada y son accesibles únicamente por los integrantes autorizados mediante el código de grupo.</p>
+        <p class="margin-top"><strong>3. Envío de Notificaciones:</strong> Los correos electrónicos de aviso se procesan a través de EmailJS exclusivamente para notificar la asignación de cuotas pendientes.</p>
+        <p class="margin-top"><strong>4. Eliminación de Datos:</strong> Puedes eliminar tus registros de gastos o borrar grupos completos en cualquier momento utilizando los botones de administración dentro de la aplicación.</p>
+      </div>
+
+      <button id="btn-entendido-privacy" class="btn-primary margin-top">Aceptar y Cerrar</button>
     </div>
   </div>
 
