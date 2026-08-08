@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CuentasClaras - Gastos Compartidos</title>
 
-  <!-- MANIFIESTO PWA -->
+  <!-- MANIFIESTO PWA PARA INSTALACIÓN EN PANTALLA DE INICIO -->
   <link rel="manifest" href="data:application/manifest+json;utf8,{%22name%22:%22CuentasClaras%22,%22short_name%22:%22CuentasClaras%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230b0f17%22,%22theme_color%22:%22%2310b981%22,%22icons%22:[{%22src%22:%22data:image/svg%2Bxml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20100%20100%22%3E%3Ctext%20y=%22.9em%22%20font-size=%2290%22%3E💸%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22192x192%22,%22type%22:%22image/svg%2Bxml%22}]}">
   
   <!-- FAVICON -->
@@ -148,14 +148,13 @@
       </div>
     </section>
 
-    <!-- SECCIÓN 2: BALANCE Y DESGLOSE INDIVIDUAL DE DEUDAS -->
+    <!-- SECCIÓN 2: BALANCE Y DESGLOSE INDIVIDUAL -->
     <section id="balance-section" class="card hidden">
       <h2>⚖️ Estado de Deudas</h2>
       <div class="balance-box" id="balance-display">
         Selecciona o crea un grupo...
       </div>
       
-      <!-- DESGLOSE DETALLADO INTEGRANTES -->
       <div id="desglose-integrantes-box" class="margin-top hidden">
         <h3 class="sub-section-title">📊 Desglose por Integrante</h3>
         <div id="lista-desglose-integrantes" class="desglose-grid"></div>
@@ -223,7 +222,6 @@
         <button id="btn-exportar-csv" class="btn-share" type="button">📥 Exportar CSV</button>
       </div>
 
-      <!-- FILTROS Y BUSCADOR -->
       <div class="filtros-grid margin-top">
         <input type="text" id="filter-search" placeholder="🔍 Buscar gasto por nombre...">
         <select id="filter-categoria">
@@ -271,7 +269,7 @@
         <div class="step-item">
           <span class="step-num">3</span>
           <strong>Compresión de Imágenes</strong>
-          <p>Las fotos de tus boletas se optimizan automáticamente para subir rápido.</p>
+          <p>Las fotos de tus boletas se optimizan automáticamente para subir rápido y verse en el e-mail.</p>
         </div>
       </div>
 

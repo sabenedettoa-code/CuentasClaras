@@ -419,6 +419,9 @@ input:focus, select:focus {
   padding: 12px;
   border-radius: 10px;
   font-size: 0.85rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .gastos-list { list-style: none; padding: 0; }

@@ -6,8 +6,7 @@ import {
   signOut, 
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup,
-  updateProfile
+  signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { 
   getFirestore, 
@@ -26,6 +25,9 @@ import {
 const EMAILJS_PUBLIC_KEY = "e_uovUaQx61cm7X24"; 
 const EMAILJS_SERVICE_ID = "service_v89l5mz"; 
 const EMAILJS_TEMPLATE_ID = "template_qiaonxj"; 
+
+// Imagen transparente en Base64 por defecto
+const IMAGEN_VACIA = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 if (typeof emailjs !== "undefined") {
   emailjs.init(EMAILJS_PUBLIC_KEY);
@@ -170,7 +172,7 @@ function obtenerNombreUsuario(user) {
   return "Usuario";
 }
 
-// COMPRESIÓN DE IMÁGENES
+// COMPRESIÓN AUTOMÁTICA DE IMÁGENES Y LECTURA A BASE64
 function comprimirImagenABase64(archivo) {
   return new Promise((resolve) => {
     if (!archivo) return resolve(null);
@@ -409,16 +411,20 @@ formPago.addEventListener('submit', async (e) => {
       fecha: new Date().toISOString()
     });
 
+    const emailParamsPago = {
+      to_email: inputPagoParaEmail.value,
+      from_name: miNombre,
+      from_email: currentUser.email,
+      titulo: `Pago de: ${inputPagoTituloGasto.value}`,
+      categoria: "Transferencia Recibida",
+      monto_cuota: `${formatearMoneda(parseFloat(inputPagoMontoCuota.value))} (Comprobante adjunto)`,
+      content_attachment: comprobanteBase64 || IMAGEN_VACIA,
+      tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;"
+    };
+
     if (typeof emailjs !== "undefined") {
       try {
-        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-          to_email: inputPagoParaEmail.value,
-          from_name: miNombre,
-          from_email: currentUser.email,
-          titulo: `Pago de: ${inputPagoTituloGasto.value}`,
-          categoria: "Transferencia Recibida",
-          monto_cuota: `${formatearMoneda(parseFloat(inputPagoMontoCuota.value))} (Ver comprobante en app)`
-        });
+        await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParamsPago);
       } catch (err) {}
     }
 
@@ -557,7 +563,7 @@ btnCompartir.addEventListener('click', async () => {
   }
 });
 
-// REGISTRO DE GASTOS CON NOMBRE REAL DEL USUARIO
+// REGISTRO DE GASTOS CON NOMBRE REAL
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!currentHogar) return;
@@ -610,16 +616,20 @@ gastoForm.addEventListener('submit', async (e) => {
           fecha: new Date().toISOString()
         });
 
+        const emailParams = {
+          to_email: correoDestino,
+          from_name: miNombre,
+          from_email: currentUser.email,
+          titulo: titulo,
+          categoria: categoria,
+          monto_cuota: formatearMoneda(cuotaPorPersona),
+          content_attachment: comprobanteBase64 || IMAGEN_VACIA,
+          tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;"
+        };
+
         if (typeof emailjs !== "undefined") {
           try {
-            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-              to_email: correoDestino,
-              from_name: miNombre,
-              from_email: currentUser.email,
-              titulo: titulo,
-              categoria: categoria,
-              monto_cuota: formatearMoneda(cuotaPorPersona)
-            });
+            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
           } catch (err) {}
         }
       }
