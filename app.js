@@ -176,7 +176,7 @@ function obtenerNombreUsuario(user) {
   return "Usuario";
 }
 
-// COMPRESIÓN ULTRA OPTIMIZADA DE IMÁGENES (<15KB)
+// COMPRESIÓN ULTRA LIGERA PARA CORREOS (<10KB)
 function comprimirImagenABase64(archivo) {
   return new Promise((resolve) => {
     if (!archivo) return resolve(null);
@@ -195,7 +195,7 @@ function comprimirImagenABase64(archivo) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 350; 
+        const MAX_WIDTH = 280; 
         const scaleSize = MAX_WIDTH / img.width;
         
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
@@ -203,7 +203,7 @@ function comprimirImagenABase64(archivo) {
 
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.3)); 
+        resolve(canvas.toDataURL('image/jpeg', 0.25)); 
       };
     };
   });
@@ -462,8 +462,7 @@ formPago.addEventListener('submit', async (e) => {
       fecha: new Date().toISOString()
     });
 
-    // Validar si el Base64 excede 50KB para no bloquear EmailJS
-    const esSuficientementePequeno = comprobanteBase64 && comprobanteBase64.length < 50000;
+    const esSuficientementePequeno = comprobanteBase64 && comprobanteBase64.length < 120000;
 
     const emailParamsPago = {
       to_email: inputPagoParaEmail.value,
@@ -698,8 +697,7 @@ gastoForm.addEventListener('submit', async (e) => {
           fecha: new Date().toISOString()
         });
 
-        // Validar si el Base64 excede 50KB para no bloquear EmailJS
-        const esSuficientementePequeno = comprobanteBase64 && comprobanteBase64.length < 50000;
+        const esSuficientementePequeno = comprobanteBase64 && comprobanteBase64.length < 120000;
 
         const emailParams = {
           to_email: correoDestino,
