@@ -126,7 +126,12 @@ const filterCategoria = document.getElementById('filter-categoria');
 const btnExportarCsv = document.getElementById('btn-exportar-csv');
 
 const tipoGastoSelect = document.getElementById('tipo-gasto');
+const categoriaSelect = document.getElementById('categoria');
 const grupoCorreoDeudor = document.getElementById('grupo-correo-deudor');
+const restauranteItemsBox = document.getElementById('restaurante-items-box');
+const contenedorItemsRestaurante = document.getElementById('contenedor-items-restaurante');
+const btnAgregarItemRestaurante = document.getElementById('btn-agregar-item-restaurante');
+const inputMontoGasto = document.getElementById('monto');
 
 let currentUser = null;
 let currentHogar = null;
@@ -160,7 +165,6 @@ function formatearMoneda(monto) {
   }).format(monto);
 }
 
-// FUNCIÓN PARA OBTENER EL NOMBRE REAL DEL USUARIO
 function obtenerNombreUsuario(user) {
   if (user && user.displayName && user.displayName.trim() !== "") {
     return user.displayName;
@@ -172,10 +176,10 @@ function obtenerNombreUsuario(user) {
   return "Usuario";
 }
 
-// COMPRESIÓN AUTOMÁTICA DE IMÁGENES Y LECTURA A BASE64
 function comprimirImagenABase64(archivo) {
   return new Promise((resolve) => {
     if (!archivo) return resolve(null);
+    
     if (archivo.type === 'application/pdf') {
       const reader = new FileReader();
       reader.readAsDataURL(archivo);
@@ -190,7 +194,7 @@ function comprimirImagenABase64(archivo) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800;
+        const MAX_WIDTH = 400; 
         const scaleSize = MAX_WIDTH / img.width;
         
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
@@ -198,10 +202,64 @@ function comprimirImagenABase64(archivo) {
 
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.7));
+        resolve(canvas.toDataURL('image/jpeg', 0.4)); 
       };
     };
   });
+}
+
+function verificarMostrarRestaurante() {
+  const esRestaurante = categoriaSelect.value === 'Restaurante';
+  const esCompartido = tipoGastoSelect.value === 'compartido';
+
+  if (esRestaurante && esCompartido) {
+    restauranteItemsBox.classList.remove('hidden');
+    if (contenedorItemsRestaurante.children.length === 0) {
+      agregarFilaRestaurante();
+    }
+  } else {
+    restauranteItemsBox.classList.add('hidden');
+  }
+}
+
+categoriaSelect.addEventListener('change', verificarMostrarRestaurante);
+tipoGastoSelect.addEventListener('change', (e) => {
+  if (e.target.value === 'personal') {
+    grupoCorreoDeudor.classList.add('hidden');
+  } else {
+    grupoCorreoDeudor.classList.remove('hidden');
+  }
+  verificarMostrarRestaurante();
+});
+
+function agregarFilaRestaurante() {
+  const div = document.createElement('div');
+  div.className = 'item-restaurante-row';
+  div.innerHTML = `
+    <input type="text" class="item-persona" placeholder="Persona (Ej: Ana)">
+    <input type="text" class="item-nombre" placeholder="Platillo (Ej: Pizza)">
+    <input type="number" class="item-precio" placeholder="Precio" min="0" step="1">
+    <button type="button" class="btn-delete btn-eliminar-item">&times;</button>
+  `;
+
+  div.querySelector('.btn-eliminar-item').addEventListener('click', () => {
+    div.remove();
+    calcularTotalRestaurante();
+  });
+
+  div.querySelector('.item-precio').addEventListener('input', calcularTotalRestaurante);
+  contenedorItemsRestaurante.appendChild(div);
+}
+
+btnAgregarItemRestaurante.addEventListener('click', agregarFilaRestaurante);
+
+function calcularTotalRestaurante() {
+  let suma = 0;
+  document.querySelectorAll('.item-precio').forEach(inp => {
+    const val = parseFloat(inp.value);
+    if (!isNaN(val)) suma += val;
+  });
+  if (suma > 0) inputMontoGasto.value = suma;
 }
 
 // PWA
@@ -254,14 +312,6 @@ btnClosePrivacy.addEventListener('click', () => modalPrivacy.classList.add('hidd
 btnEntendidoPrivacy.addEventListener('click', () => modalPrivacy.classList.add('hidden'));
 
 btnClosePago.addEventListener('click', () => modalPago.classList.add('hidden'));
-
-tipoGastoSelect.addEventListener('change', (e) => {
-  if (e.target.value === 'personal') {
-    grupoCorreoDeudor.classList.add('hidden');
-  } else {
-    grupoCorreoDeudor.classList.remove('hidden');
-  }
-});
 
 // AUTENTICACIÓN
 btnToggle.addEventListener('click', () => {
@@ -419,13 +469,24 @@ formPago.addEventListener('submit', async (e) => {
       categoria: "Transferencia Recibida",
       monto_cuota: `${formatearMoneda(parseFloat(inputPagoMontoCuota.value))} (Comprobante adjunto)`,
       content_attachment: comprobanteBase64 || IMAGEN_VACIA,
-      tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;"
+      tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;",
+      items_restaurante_html: "",
+      tiene_items_restaurante: "display: none;"
     };
 
     if (typeof emailjs !== "undefined") {
       try {
         await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParamsPago);
-      } catch (err) {}
+      } catch (errEmail) {
+        console.warn("Fallo el envío con adjunto, reintentando sin adjunto...", errEmail);
+        try {
+          emailParamsPago.content_attachment = IMAGEN_VACIA;
+          emailParamsPago.tiene_comprobante = "display: none;";
+          await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParamsPago);
+        } catch (errFallback) {
+          console.error("Error definitivo enviando correo de pago:", errFallback);
+        }
+      }
     }
 
     modalPago.classList.add('hidden');
@@ -563,7 +624,7 @@ btnCompartir.addEventListener('click', async () => {
   }
 });
 
-// REGISTRO DE GASTOS CON NOMBRE REAL
+// REGISTRO DE GASTOS
 gastoForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!currentHogar) return;
@@ -577,6 +638,22 @@ gastoForm.addEventListener('submit', async (e) => {
   const comprobanteBase64 = await comprimirImagenABase64(fileComprobanteGasto.files[0]);
   const esCompartido = tipoGasto === 'compartido';
   const miNombre = obtenerNombreUsuario(currentUser);
+
+  let itemsRestaurante = [];
+  let itemsRestauranteHtml = "";
+
+  if (categoria === 'Restaurante' && esCompartido) {
+    document.querySelectorAll('.item-restaurante-row').forEach(row => {
+      const persona = row.querySelector('.item-persona').value.trim();
+      const nombreItem = row.querySelector('.item-nombre').value.trim();
+      const precio = parseFloat(row.querySelector('.item-precio').value);
+
+      if (persona && nombreItem && !isNaN(precio)) {
+        itemsRestaurante.push({ persona, item: nombreItem, precio });
+        itemsRestauranteHtml += `• <strong>${persona}</strong>: ${nombreItem} (${formatearMoneda(precio)})<br>`;
+      }
+    });
+  }
 
   let correosLista = [];
   if (esCompartido && correosRaw) {
@@ -598,6 +675,7 @@ gastoForm.addEventListener('submit', async (e) => {
       monto: monto,
       esCompartido: esCompartido,
       compartidoConEmails: correosLista,
+      itemsRestaurante: itemsRestaurante,
       comprobanteBase64: comprobanteBase64,
       pagadoPor: currentUser.uid,
       pagadoPorEmail: currentUser.email,
@@ -624,24 +702,37 @@ gastoForm.addEventListener('submit', async (e) => {
           categoria: categoria,
           monto_cuota: formatearMoneda(cuotaPorPersona),
           content_attachment: comprobanteBase64 || IMAGEN_VACIA,
-          tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;"
+          tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;",
+          items_restaurante_html: itemsRestauranteHtml,
+          tiene_items_restaurante: itemsRestauranteHtml !== "" ? "display: block;" : "display: none;"
         };
 
         if (typeof emailjs !== "undefined") {
           try {
             await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
-          } catch (err) {}
+          } catch (errEmail) {
+            console.warn("Fallo el envío con adjunto, reintentando sin adjunto...", errEmail);
+            try {
+              emailParams.content_attachment = IMAGEN_VACIA;
+              emailParams.tiene_comprobante = "display: none;";
+              await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, emailParams);
+            } catch (errFallback) {
+              console.error("Error definitivo enviando correo:", errFallback);
+            }
+          }
         }
       }
     }
 
     gastoForm.reset();
+    contenedorItemsRestaurante.innerHTML = '';
+    restauranteItemsBox.classList.add('hidden');
   } catch (error) {
     console.error('Error al guardar gasto:', error);
   }
 });
 
-// HISTORIAL Y DESGLOSE CON NOMBRES REALES
+// HISTORIAL Y DESGLOSE EN TIEMPO REAL
 function escucharGastosEnTiempoReal() {
   if (unsubscribeGastos) unsubscribeGastos();
 
@@ -737,6 +828,15 @@ function renderizarHistorialGastos() {
     const tagClase = gasto.esCompartido ? 'tag-compartido' : 'tag-personal';
     const tagTexto = gasto.esCompartido ? 'Compartido' : 'Personal';
 
+    let htmlItemsRestaurante = '';
+    if (gasto.itemsRestaurante && gasto.itemsRestaurante.length > 0) {
+      htmlItemsRestaurante = `<div style="font-size:0.8rem; color:#9ca3af; margin-top:4px; padding-left:8px; border-left:2px solid #10b981;">`;
+      gasto.itemsRestaurante.forEach(it => {
+        htmlItemsRestaurante += `• <strong>${it.persona}</strong>: ${it.item} (${formatearMoneda(it.precio)})<br>`;
+      });
+      htmlItemsRestaurante += `</div>`;
+    }
+
     const li = document.createElement('li');
     li.className = 'gasto-item';
     li.innerHTML = `
@@ -744,6 +844,7 @@ function renderizarHistorialGastos() {
         <strong>${gasto.categoria} - ${gasto.titulo}</strong>
         <span class="gasto-tag ${tagClase}">${tagTexto}</span>
         <br><small>Pagado por: ${gasto.pagadoPorNombre}</small>
+        ${htmlItemsRestaurante}
         ${gasto.comprobanteBase64 ? `<br><a href="${gasto.comprobanteBase64}" download="comprobante_${gasto.titulo}.jpg" target="_blank" class="gasto-link">📄 Ver / Descargar Comprobante Adjunto</a>` : ''}
       </div>
       <div class="gasto-actions">

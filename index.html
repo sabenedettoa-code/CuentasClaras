@@ -168,8 +168,8 @@
       <h2>➕ Registrar Nuevo Gasto</h2>
       <form id="gasto-form">
         <div class="input-group">
-          <label for="titulo">Descripción del Gasto</label>
-          <input type="text" id="titulo" placeholder="Ej: Cuenta de Luz, Gas, Almuerzo" required>
+          <label for="titulo">Descripción del Gasto / Restaurante</label>
+          <input type="text" id="titulo" placeholder="Ej: Cena en Pizzería, Cuenta de Luz" required>
         </div>
 
         <div class="grid-2">
@@ -206,7 +206,15 @@
           </div>
         </div>
 
-        <div class="input-group">
+        <!-- SECCIÓN DINÁMICA DE CONSUMOS INDIVIDUALES PARA RESTAURANTES -->
+        <div id="restaurante-items-box" class="restaurante-box hidden margin-top">
+          <h3 class="sub-section-title">🍽️ Consumo por Integrante</h3>
+          <p class="subtitle" style="margin-bottom: 12px; font-size: 0.8rem;">Agrega lo que consumió cada persona para calcular su parte exacta.</p>
+          <div id="contenedor-items-restaurante"></div>
+          <button id="btn-agregar-item-restaurante" type="button" class="btn-secondary-sm margin-top">➕ Agregar Consumo / Platillo</button>
+        </div>
+
+        <div class="input-group margin-top">
           <label for="file-comprobante-gasto">Adjuntar Archivo Comprobante (JPG, PNG, PDF)</label>
           <input type="file" id="file-comprobante-gasto" accept="image/*,application/pdf">
         </div>
@@ -256,8 +264,8 @@
       <div class="steps-grid margin-top">
         <div class="step-item">
           <span class="step-num">1</span>
-          <strong>Desglose Individual</strong>
-          <p>Mira exactamente cuánto debe o tiene a favor cada participante del grupo.</p>
+          <strong>Consumo de Restaurante</strong>
+          <p>Al seleccionar Restaurante, desglosa los platillos e ítems por persona.</p>
         </div>
 
         <div class="step-item">
