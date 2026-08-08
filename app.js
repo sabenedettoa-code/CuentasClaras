@@ -176,6 +176,7 @@ function obtenerNombreUsuario(user) {
   return "Usuario";
 }
 
+// COMPRESIÓN ULTRA OPTIMIZADA DE IMÁGENES (<15KB)
 function comprimirImagenABase64(archivo) {
   return new Promise((resolve) => {
     if (!archivo) return resolve(null);
@@ -194,7 +195,7 @@ function comprimirImagenABase64(archivo) {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 400; 
+        const MAX_WIDTH = 350; 
         const scaleSize = MAX_WIDTH / img.width;
         
         canvas.width = (img.width > MAX_WIDTH) ? MAX_WIDTH : img.width;
@@ -202,7 +203,7 @@ function comprimirImagenABase64(archivo) {
 
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.4)); 
+        resolve(canvas.toDataURL('image/jpeg', 0.3)); 
       };
     };
   });
@@ -461,15 +462,18 @@ formPago.addEventListener('submit', async (e) => {
       fecha: new Date().toISOString()
     });
 
+    // Validar si el Base64 excede 50KB para no bloquear EmailJS
+    const esSuficientementePequeno = comprobanteBase64 && comprobanteBase64.length < 50000;
+
     const emailParamsPago = {
       to_email: inputPagoParaEmail.value,
       from_name: miNombre,
       from_email: currentUser.email,
       titulo: `Pago de: ${inputPagoTituloGasto.value}`,
       categoria: "Transferencia Recibida",
-      monto_cuota: `${formatearMoneda(parseFloat(inputPagoMontoCuota.value))} (Comprobante adjunto)`,
-      content_attachment: comprobanteBase64 || IMAGEN_VACIA,
-      tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;",
+      monto_cuota: `${formatearMoneda(parseFloat(inputPagoMontoCuota.value))} (Comprobante adjunto en app)`,
+      content_attachment: esSuficientementePequeno ? comprobanteBase64 : IMAGEN_VACIA,
+      tiene_comprobante: esSuficientementePequeno ? "display: block;" : "display: none;",
       items_restaurante_html: "",
       tiene_items_restaurante: "display: none;"
     };
@@ -694,6 +698,9 @@ gastoForm.addEventListener('submit', async (e) => {
           fecha: new Date().toISOString()
         });
 
+        // Validar si el Base64 excede 50KB para no bloquear EmailJS
+        const esSuficientementePequeno = comprobanteBase64 && comprobanteBase64.length < 50000;
+
         const emailParams = {
           to_email: correoDestino,
           from_name: miNombre,
@@ -701,8 +708,8 @@ gastoForm.addEventListener('submit', async (e) => {
           titulo: titulo,
           categoria: categoria,
           monto_cuota: formatearMoneda(cuotaPorPersona),
-          content_attachment: comprobanteBase64 || IMAGEN_VACIA,
-          tiene_comprobante: comprobanteBase64 ? "display: block;" : "display: none;",
+          content_attachment: esSuficientementePequeno ? comprobanteBase64 : IMAGEN_VACIA,
+          tiene_comprobante: esSuficientementePequeno ? "display: block;" : "display: none;",
           items_restaurante_html: itemsRestauranteHtml,
           tiene_items_restaurante: itemsRestauranteHtml !== "" ? "display: block;" : "display: none;"
         };
